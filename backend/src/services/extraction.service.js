@@ -211,6 +211,137 @@ function computeConfidence(data, source) {
   );
 }
 
+const EXPENSE_KEYWORDS = new Set([
+  "transport",
+  "rent",
+  "gas",
+  "diesel",
+  "petrol",
+  "milk",
+  "doodh",
+  "expense",
+  "kharcha",
+  "helper",
+  "salary",
+  "wages",
+  "utilities",
+  "raw",
+  "material",
+]);
+
+function normalizeItemToken(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu, "")
+    .trim();
+}
+
+function extractRuleSales(segment) {
+  const salePattern = /(\d+)\s+([\p{L}]+)\s+(\d+)\s*(?:ka|ki|ke|rs|rupees?|₹)?/giu;
+  const sales = [];
+  let match;
+
+  while ((match = salePattern.exec(segment)) !== null) {
+    const qty = Number(match[1]);
+    const item = normalizeItemToken(match[2]);
+    const price = Number(match[3]);
+
+    if (!qty || !item || !price) {
+      continue;
+    }
+
+    sales.push({ item, qty, price });
+  }
+
+  return sales;
+}
+
+function extractRuleExpenses(segment) {
+  const expenses = [];
+  const normalized = String(segment || "").toLowerCase();
+
+  const amountFirstPattern = /(\d+)\s*(?:ka|ki|ke)?\s+([\p{L}]+)/giu;
+  let amountFirst;
+  while ((amountFirst = amountFirstPattern.exec(segment)) !== null) {
+    const amount = Number(amountFirst[1]);
+    const item = normalizeItemToken(amountFirst[2]);
+    if (!amount || !item) {
+      continue;
+    }
+
+    if (
+      normalized.includes("khar") ||
+      normalized.includes("paid") ||
+      normalized.includes("liya") ||
+      EXPENSE_KEYWORDS.has(item)
+    ) {
+      expenses.push({ item, amount });
+    }
+  }
+
+  const itemFirstPattern = /([\p{L}]+)\s+(\d+)/giu;
+  let itemFirst;
+  while ((itemFirst = itemFirstPattern.exec(segment)) !== null) {
+    const item = normalizeItemToken(itemFirst[1]);
+    const amount = Number(itemFirst[2]);
+    if (!amount || !item || !EXPENSE_KEYWORDS.has(item)) {
+      continue;
+    }
+    expenses.push({ item, amount });
+  }
+
+  return expenses;
+}
+
+function ruleBasedExtractionSync(text) {
+  const responseLanguage = detectResponseLanguage(text);
+  const normalizedText = preprocessText(text);
+  const segments = normalizedText
+    .split(/,|\.|\band\b|\baur\b/gi)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const sales = [];
+  const expenses = [];
+
+  for (const segment of segments) {
+    const normalizedSegment = segment.toLowerCase();
+    const saleIntent = /\b(becha|beche|bika|biki|sold|sale|sales|bikri)\b/i.test(
+      normalizedSegment
+    );
+    const expenseIntent = /\b(kharida|kharidi|kharcha|paid|pay|liya|expense|rent|transport|cost)\b/i.test(
+      normalizedSegment
+    );
+
+    if (saleIntent || !expenseIntent) {
+      sales.push(...extractRuleSales(segment));
+    }
+
+    if (expenseIntent || /\b(rent|transport|doodh|milk|gas|diesel|petrol)\b/i.test(normalizedSegment)) {
+      expenses.push(...extractRuleExpenses(segment));
+    }
+  }
+
+  const hasData = sales.length + expenses.length > 0;
+  return {
+    sales,
+    expenses,
+    meta: {
+      source: "rules",
+      needs_clarification: !hasData,
+      clarification_question: !hasData
+        ? getClarificationMessage(responseLanguage)
+        : null,
+    },
+    debug: {
+      llm_attempted: false,
+      llm_succeeded: false,
+      llm_used_live_response: false,
+      llm_error: null,
+    },
+  };
+}
+
 async function callLlmFallback(text) {
   const responseLanguage = detectResponseLanguage(text);
 
@@ -314,15 +445,24 @@ async function processTransactionText(text) {
   const responseLanguage = detectResponseLanguage(text);
   const normalizedText = preprocessText(text);
   const llmCandidate = await callLlmFallback(normalizedText);
+  const ruleCandidate = ruleBasedExtractionSync(normalizedText);
+  const llmHasData = (llmCandidate.sales?.length || 0) + (llmCandidate.expenses?.length || 0) > 0;
+  const ruleHasData = (ruleCandidate.sales?.length || 0) + (ruleCandidate.expenses?.length || 0) > 0;
+  const shouldUseRules =
+    !llmCandidate.debug?.llm_succeeded ||
+    !llmHasData ||
+    (llmCandidate.meta?.needs_clarification && ruleHasData);
+  const selectedCandidate = shouldUseRules ? ruleCandidate : llmCandidate;
   const mergedCandidate = mergeDuplicates(
-    reconcileExplicitPrices(normalizedText, llmCandidate)
+    reconcileExplicitPrices(normalizedText, selectedCandidate)
   );
   const ambiguity = detectAmbiguity(normalizedText, mergedCandidate);
+  const selectedSource = shouldUseRules ? "rules" : "llm";
   const validated = validateOutput({
     sales: mergedCandidate.sales,
     expenses: mergedCandidate.expenses,
     meta: {
-      source: "llm",
+      source: selectedSource,
       needs_clarification:
         mergedCandidate.meta?.needs_clarification || ambiguity.ambiguous,
       clarification_question:
@@ -338,8 +478,8 @@ async function processTransactionText(text) {
         ...validated.data,
         meta: {
           ...validated.data.meta,
-          source: "llm",
-          confidence: computeConfidence(validated.data, "llm"),
+          source: selectedSource,
+          confidence: computeConfidence(validated.data, selectedSource),
         },
         debug: {
           llm_attempted: Boolean(llmCandidate.debug?.llm_attempted),
@@ -372,11 +512,11 @@ async function processTransactionText(text) {
 }
 
 async function extractWithRules(text) {
-  return callLlmFallback(preprocessText(text));
+  return ruleBasedExtractionSync(preprocessText(text));
 }
 
 async function ruleBasedExtraction(text) {
-  return callLlmFallback(preprocessText(text));
+  return ruleBasedExtractionSync(preprocessText(text));
 }
 
 module.exports = {
