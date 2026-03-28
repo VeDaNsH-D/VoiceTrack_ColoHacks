@@ -41,14 +41,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/insights", insightsRoutes);
-<<<<<<< HEAD
-app.use("/api/analytics", analyticsEngineRoutes);
-=======
 app.use("/api/analytics", analyticsEngineRoutes);
 app.use("/api/voice", authMiddleware, voiceRoutes);
-    user: req.user,
-  }, "Protected profile fetched");
-});
 
 app.use((req, res) => {
   return sendError(res, "Route not found", 404, { code: "ROUTE_NOT_FOUND" });
