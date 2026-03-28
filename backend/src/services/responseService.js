@@ -14,6 +14,8 @@ Rules:
 - Sound like natural speech
 - Include numbers clearly (₹, quantities)
 - Avoid long explanations
+- Use the provided business data and retrieved past context when relevant
+- Do not hallucinate facts that are not supported by current data or past context
 `;
 
 function formatCurrency(value) {
@@ -55,7 +57,19 @@ function buildFallbackReply(userMessage, queryResult) {
   }
 }
 
-async function generateResponse(userMessage, queryResult) {
+function buildRagUserPrompt(userMessage, queryResult, context) {
+  const contextBlock = context || "No relevant past context found.";
+
+  return [
+    `User question: ${userMessage}`,
+    `Current data: ${JSON.stringify(queryResult)}`,
+    "Past context:",
+    contextBlock,
+    "Generate a natural, helpful reply using current data first and past context only when relevant.",
+  ].join("\n\n");
+}
+
+async function generateResponse(userMessage, queryResult, context = "") {
   const cleanedMessage = typeof userMessage === "string" ? userMessage.trim() : "";
 
   if (!cleanedMessage) {
@@ -80,8 +94,10 @@ async function generateResponse(userMessage, queryResult) {
         temperature: 0.3,
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: cleanedMessage },
-          { role: "assistant", content: JSON.stringify(queryResult) },
+          {
+            role: "user",
+            content: buildRagUserPrompt(cleanedMessage, queryResult, context),
+          },
         ],
       },
       {
@@ -117,5 +133,6 @@ async function generateResponse(userMessage, queryResult) {
 module.exports = {
   generateResponse,
   buildFallbackReply,
+  buildRagUserPrompt,
   systemPrompt,
 };

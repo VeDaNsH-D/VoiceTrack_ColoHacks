@@ -39,6 +39,8 @@ const transactionSchema = new mongoose.Schema(
     },
     rawText: { type: String, required: true, trim: true },
     normalizedText: { type: String, required: true, trim: true },
+    summary: { type: String, default: "", trim: true },
+    embedding: { type: [Number], default: void 0 },
     sales: { type: [saleSchema], default: [] },
     expenses: { type: [expenseSchema], default: [] },
     totals: {

@@ -1,5 +1,7 @@
 const { extractIntent } = require("../services/intentService");
 const { handleQuery } = require("../services/queryService");
+const { generateResponse } = require("../services/responseService");
+const { getRelevantContext } = require("../services/vectorService");
 
 function isHindiLike(text) {
   const input = String(text || "");
@@ -84,14 +86,18 @@ async function queryAssistant(req, res) {
     const queryResult = await handleQuery(userId.trim(), intent);
     const isUnknown = queryResult?.type === "unknown";
     const clarificationQuestion = isUnknown ? buildClarification(message) : null;
-    const reply = isUnknown
-      ? clarificationQuestion
-      : buildGroundedReply(message, queryResult);
+    const contextDocs = isUnknown
+      ? []
+      : await getRelevantContext(userId.trim(), message);
+    const response = isUnknown
+      ? { reply: clarificationQuestion, audioNeeded: true }
+      : await generateResponse(message, queryResult, contextDocs.join("\n"));
 
     return res.status(200).json({
       intent,
       queryResult,
-      reply,
+      contextDocs,
+      reply: response?.reply || buildGroundedReply(message, queryResult),
       audioNeeded: true,
       needsClarification: isUnknown,
       clarificationQuestion,
