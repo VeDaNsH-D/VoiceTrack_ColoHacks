@@ -1,0 +1,63 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #F8F5F2; /* Base cream color */
+    color: #1A1A1A;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer components {
+  /* Ultra-modern glass card matching the design */
+  .glass-card {
+    background: rgba(230, 224, 218, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 28px;
+    padding: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.02);
+  }
+
+  .glass-pill {
+    background: rgba(138, 155, 128, 0.6);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 16px;
+    color: #1A1A1A;
+    font-weight: 500;
+  }
+
+  .nav-blur {
+    background: rgba(26, 26, 26, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+}
+
+/* Custom Utilities for Gradients */
+@layer utilities {
+  .text-gradient {
+    background: linear-gradient(135deg, #1A1A1A 0%, #4A4A4A 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  .bg-app-gradient {
+    background: radial-gradient(circle at top left, #ebfae1 0%, transparent 40%),
+                radial-gradient(circle at top right, #fce0c7 0%, transparent 40%),
+                radial-gradient(circle at bottom center, #f5e9d3 0%, #f6f1ec 100%);
+    background-color: #f6f1ec;
+  }
+}
