@@ -498,8 +498,8 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
             )}
 
             <div className={`max-w-[75%] p-4 rounded-3xl text-[15px] font-medium leading-relaxed tracking-wide shadow-sm ${msg.sender === 'user'
-                ? 'bg-[#1A1A1A] text-[#F8F5F2] rounded-tr-sm'
-                : 'glass-card rounded-tl-sm text-[#1A1A1A]'
+              ? 'bg-[#1A1A1A] text-[#F8F5F2] rounded-tr-sm'
+              : 'glass-card rounded-tl-sm text-[#1A1A1A]'
               }`}>
               {msg.text}
               {msg.sender === 'ai' && msg.audioUrl && (

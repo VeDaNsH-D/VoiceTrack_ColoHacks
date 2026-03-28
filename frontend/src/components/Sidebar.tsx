@@ -154,8 +154,8 @@ const MenuButton = ({ label, icon, isActive, onClick }: { label: string, icon: R
     <button
       onClick={onClick}
       className={`w-full flex items-center gap-4 py-4 px-5 rounded-2xl font-bold transition-all ${isActive
-          ? 'bg-[#F8F5F2] text-[#161211] shadow-lg scale-100'
-          : 'bg-transparent text-[#F8F5F2]/60 hover:bg-white/5 hover:text-[#F8F5F2] scale-95 origin-left'
+        ? 'bg-[#F8F5F2] text-[#161211] shadow-lg scale-100'
+        : 'bg-transparent text-[#F8F5F2]/60 hover:bg-white/5 hover:text-[#F8F5F2] scale-95 origin-left'
         }`}
     >
       <div className={`${isActive ? 'opacity-100 text-[#8A9B80]' : 'opacity-80'}`}>
