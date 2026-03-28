@@ -32,12 +32,9 @@ pycparser==3.0
 pydantic==2.12.5
 pydantic_core==2.41.5
 pyparsing==3.3.2
-<<<<<<< HEAD
-python-multipart==0.0.22
-=======
->>>>>>> 7c6236cefe4cb587fe6f29e808950e0afcf9b5e0
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
+python-multipart==0.0.22
 regex==2026.2.28
 requests==2.33.0
 scipy==1.17.1

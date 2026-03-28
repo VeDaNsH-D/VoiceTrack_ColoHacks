@@ -45,28 +45,45 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userName, onNaviga
         </h1>
       </div>
 
-      {/* Growing gradient orb representing AI */}
-      <div className="flex-1 flex items-center justify-center relative">
-        <motion.div
-          animate={{
-            scale: [1, 1.05, 1],
-            rotate: [0, 5, -5, 0],
+      {/* Majestic Halo AI Interface */}
+      <div className="flex-1 flex items-center justify-center relative perspective-[1000px]">
+        
+        {/* Core Glowing Orb */}
+        <motion.div 
+          animate={{ 
+            scale: [1, 1.1, 1], 
+            filter: ['blur(15px)', 'blur(25px)', 'blur(15px)'],
+            opacity: [0.7, 1, 0.7]
           }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-          className="w-72 h-72 rounded-full relative"
-          style={{
-            background: 'radial-gradient(circle at 60% 40%, rgba(138,155,128,0.8) 0%, rgba(168,152,115,0.6) 50%, rgba(168,152,115,0) 80%)',
-            boxShadow: '0 0 80px 40px rgba(168,152,115,0.2) inset, 0 0 40px 10px rgba(138,155,128,0.1)',
-            filter: 'blur(4px)'
-          }}
-        >
-          {/* Speckle/particle effect overlay simulated by small rotating dots */}
-          <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(#1A1A1A 1px, transparent 1px)', backgroundSize: '12px 12px' }}></div>
-        </motion.div>
+          transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute w-28 h-28 rounded-full bg-gradient-to-tr from-[#8A9B80] to-[#E6DFD7] shadow-[0_0_60px_15px_rgba(138,155,128,0.5)] z-10"
+        />
+
+        {/* Ring 1: Fast Axis */}
+        <motion.div 
+          animate={{ rotateZ: 360, rotateX: [60, 75, 60], rotateY: [0, 180, 360] }}
+          transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+          className="absolute w-56 h-56 rounded-full border-[1.5px] border-[#8A9B80] opacity-40 border-t-transparent shadow-[0_0_15px_rgba(138,155,128,0.2)]"
+          style={{ transformStyle: 'preserve-3d' }}
+        />
+
+        {/* Ring 2: Slow Counter Axis */}
+        <motion.div 
+          animate={{ rotateZ: -360, rotateX: [70, 85, 70], rotateY: [360, 180, 0] }}
+          transition={{ duration: 12, repeat: Infinity, ease: 'linear' }}
+          className="absolute w-48 h-48 rounded-full border-[2.5px] border-[#A89873] opacity-30 border-l-transparent shadow-[0_0_20px_rgba(168,152,115,0.2)]"
+          style={{ transformStyle: 'preserve-3d' }}
+        />
+
+        {/* Ring 3: Delicate Outer Halo */}
+        <motion.div 
+          animate={{ rotateZ: 360, scale: [1, 1.05, 1] }}
+          transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+          className="absolute w-72 h-72 rounded-full border-[1px] border-dashed border-[#1A1A1A] opacity-10"
+        />
+
+        {/* Center Spark */}
+        <div className="w-8 h-8 rounded-full bg-white blur-md z-20 absolute" />
       </div>
 
       {/* Bottom Nav with cutout for Mic */}
