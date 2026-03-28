@@ -1,0 +1,10 @@
+.DS_Store
+.env
+venv/
+__pycache__/
+*.py[cod]
+*.log
+logs/
+temp_audio/
+.pytest_cache/
+.mypy_cache/

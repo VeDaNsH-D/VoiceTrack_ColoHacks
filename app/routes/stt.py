@@ -1,35 +1,44 @@
-import logging
 import os
 import shutil
-from fastapi import APIRouter, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 from app.services.stt_pipeline import run_stt_pipeline
+from app.utils.logger import logger
+from app.utils.config import TEMP_AUDIO_DIR
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
-TEMP_DIR = "app/temp_audio"
+
+@router.get("/")
+def root():
+    return {
+        "service": "VoiceTrack STT API",
+        "status": "running",
+        "docs": "/docs",
+        "health": "/health"
+    }
+
+@router.get("/health")
+def health():
+    return {"status": "ok"}
 
 @router.post("/stt")
-async def speech_to_text(file: UploadFile = File(...)):
+async def stt(file: UploadFile = File(...)):
     logger.info("/stt request received")
     if not file.content_type.startswith("audio/"):
-        logger.error("Invalid audio format: %s", file.content_type)
+        logger.error(f"Invalid file type: {file.content_type}")
         raise HTTPException(status_code=400, detail="Invalid audio file format.")
-    os.makedirs(TEMP_DIR, exist_ok=True)
-    temp_path = os.path.join(TEMP_DIR, file.filename)
+    os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
+    temp_path = os.path.join(TEMP_AUDIO_DIR, file.filename)
     try:
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        logger.info("STT started for %s", temp_path)
-        try:
-            text, confidence = run_stt_pipeline(temp_path)
-            source = "sarvam/whisper"
-        except Exception as e:
-            logger.error("STT pipeline failed: %s", str(e))
-            logger.info("Fallback triggered for %s", temp_path)
-            text, confidence, source = "", 0.0, "fallback"
-        logger.info("STT output: %s", text)
-        return {"text": text, "source": source, "confidence": confidence}
+        logger.info(f"Saved uploaded file to {temp_path}")
+        result = run_stt_pipeline(temp_path)
+        logger.info(f"STT pipeline result: {result}")
+        return JSONResponse(content=result)
+    except Exception as e:
+        logger.error(f"STT processing failed: {e}")
+        raise HTTPException(status_code=500, detail="STT processing failed.")
     finally:
         try:
             os.remove(temp_path)

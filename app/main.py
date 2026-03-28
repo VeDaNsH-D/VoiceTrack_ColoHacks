@@ -1,14 +1,10 @@
-import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import health, stt, process
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
-logger = logging.getLogger(__name__)
+from app.routes import stt
+from app.utils.logger import logger
 
 app = FastAPI()
 
-# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,10 +14,7 @@ app.add_middleware(
 )
 
 @app.on_event("startup")
-def startup_event():
+def on_startup():
     logger.info("FastAPI server started.")
 
-# Include routers
-app.include_router(health.router)
 app.include_router(stt.router)
-app.include_router(process.router)
