@@ -1,9 +1,9 @@
-const { generateChatReply } = require("../services/groqService");
-const {
-  getUserChat,
-  addUserMessage,
-  addAssistantMessage,
-} = require("../utils/chatMemory");
+const { extractIntent, inferIntentFromRules } = require("../services/intentService");
+const { handleQuery } = require("../services/queryService");
+const { generateResponse } = require("../services/responseService");
+const { generateSpeech } = require("../services/ttsService");
+const { getRelevantContext } = require("../services/vectorService");
+const logger = require("../utils/logger");
 
 const FILLER_WORDS = new Set([
   "uh",
@@ -19,9 +19,7 @@ const FILLER_WORDS = new Set([
 function cleanInput(message, sttProvider) {
   const normalizedProvider = String(sttProvider || "").toLowerCase();
 
-  let cleanedMessage = String(message || "")
-    .trim()
-    .toLowerCase();
+  let cleanedMessage = String(message || "").trim().toLowerCase();
 
   if (!cleanedMessage) {
     return "";
@@ -40,6 +38,33 @@ function cleanInput(message, sttProvider) {
   }
 
   return cleanedMessage;
+}
+
+function detectLanguage(message) {
+  const input = String(message || "");
+
+  if (/[\u0900-\u097F]/.test(input)) {
+    return "hi";
+  }
+
+  if (/\b(aaj|kal|kitna|kitni|kitne|tumne|maal|becha|bika|biki|hai|haan|nahi)\b/i.test(input)) {
+    return "hi";
+  }
+
+  return "en";
+}
+
+async function resolveIntent(message) {
+  try {
+    return await extractIntent(message);
+  } catch (error) {
+    logger.warn("Intent extraction failed, using rule-based fallback", {
+      input: message,
+      error: error.message,
+      code: error.code,
+    });
+    return inferIntentFromRules(message);
+  }
 }
 
 async function chat(req, res) {
@@ -65,30 +90,45 @@ async function chat(req, res) {
       return res.status(400).json({ error: "Something went wrong" });
     }
 
-    getUserChat(userId);
-    addUserMessage(userId, cleanedMessage);
+    const intentData = await resolveIntent(cleanedMessage);
+    const queryResult = await handleQuery(userId.trim(), intentData);
+    const contextDocs = await getRelevantContext(userId.trim(), cleanedMessage);
+    const context = contextDocs.join("\n");
+    const responsePayload = await generateResponse(cleanedMessage, queryResult, context);
+    const reply = typeof responsePayload?.reply === "string"
+      ? responsePayload.reply.trim()
+      : "";
 
-    const chatHistory = getUserChat(userId);
-    const reply = await generateChatReply(chatHistory);
+    if (!reply) {
+      throw new Error("Empty reply generated");
+    }
 
-    addAssistantMessage(userId, reply);
+    const language = detectLanguage(cleanedMessage);
+    const audioUrl = await generateSpeech(reply, language);
 
-    console.log({
-      userId,
+    logger.info("Voice chat response generated", {
+      userId: userId.trim(),
       input: message,
-      output: reply,
+      cleanedInput: cleanedMessage,
+      reply,
       source,
       sttProvider,
-      timestamp: new Date(),
+      retrievedContextCount: contextDocs.length,
+      audioGenerated: Boolean(audioUrl),
+      timestamp: new Date().toISOString(),
     });
 
     return res.status(200).json({
       reply,
-      audioNeeded: true,
+      audioUrl,
     });
   } catch (error) {
-    console.error("Chat controller error", {
-      message: error.message,
+    logger.error("Chat controller error", {
+      userId,
+      input: message,
+      source,
+      sttProvider,
+      error: error.message,
       code: error.code,
       details: error.details,
     });
@@ -101,4 +141,6 @@ async function chat(req, res) {
 
 module.exports = {
   chat,
+  cleanInput,
+  detectLanguage,
 };

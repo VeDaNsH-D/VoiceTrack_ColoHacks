@@ -8,6 +8,17 @@ module.exports = {
   mongoUri: process.env.MONGO_URI || "",
   groqApiKey: process.env.GROQ_API_KEY || "",
   groqModel: process.env.GROQ_MODEL || "llama3-8b-8192",
+  huggingFaceApiKey:
+    process.env.HUGGINGFACE_API_KEY ||
+    process.env.HF_API_KEY ||
+    process.env.HUGGINGFACEHUB_API_TOKEN ||
+    "",
+  huggingFaceEmbeddingUrl:
+    process.env.HUGGINGFACE_EMBEDDING_URL ||
+    "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2",
+  ttsBaseUrl: process.env.TTS_BASE_URL || "http://127.0.0.1:8000",
+  ttsPath: process.env.TTS_PATH || "/tts",
+  ttsTimeoutMs: Number(process.env.TTS_TIMEOUT_MS || 10000),
   geminiApiKey: process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY || "",
   geminiModel:
     process.env.GEMINI_MODEL ||

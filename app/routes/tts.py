@@ -15,6 +15,7 @@ router = APIRouter()
 
 class TTSRequest(BaseModel):
     text: str = Field(..., min_length=1)
+    language: str | None = None
 
 
 def build_audio_url(request: Request, audio_path: str) -> str:
@@ -26,15 +27,11 @@ def build_audio_url(request: Request, audio_path: str) -> str:
 async def tts(request: TTSRequest, http_request: Request):
     logger.info("/tts request received")
 
-    audio_path = await text_to_speech(request.text)
+    audio_path = await text_to_speech(request.text, request.language or "hi")
     if not audio_path:
         raise HTTPException(status_code=500, detail="TTS generation failed")
 
-    return {
-        "audio_path": audio_path,
-        "audio_url": build_audio_url(http_request, audio_path),
-    }
-
+    return {"audioUrl": f"/audio/{os.path.basename(audio_path)}"}
 
 @router.get("/audio/{filename}", name="get_generated_audio")
 def get_generated_audio(filename: str):

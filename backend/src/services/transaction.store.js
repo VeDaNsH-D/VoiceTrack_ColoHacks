@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Transaction = require("../models/transaction.model");
 const RawLog = require("../models/rawLog.model");
+const { generateEmbedding } = require("./embeddingService");
 
 const transactions = [];
 const rawLogs = [];
@@ -9,15 +10,69 @@ function isMongoReady() {
   return mongoose.connection.readyState === 1;
 }
 
+function formatDateForSummary(value) {
+  const date = value ? new Date(value) : new Date();
+
+  if (Number.isNaN(date.getTime())) {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function buildTransactionSummary(entry) {
+  const summaryParts = [];
+  const dateLabel = formatDateForSummary(entry?.createdAt);
+
+  for (const sale of entry?.sales || []) {
+    const quantity = Number(sale?.qty) || 0;
+    const item = String(sale?.item || "").trim();
+    const amount = quantity * (Number(sale?.price) || 0);
+
+    if (item && quantity > 0) {
+      summaryParts.push(`Sold ${quantity} ${item} for Rs ${amount} on ${dateLabel}`);
+    }
+  }
+
+  for (const expense of entry?.expenses || []) {
+    const item = String(expense?.item || "").trim();
+    const amount = Number(expense?.amount) || 0;
+
+    if (item && amount > 0) {
+      summaryParts.push(`Spent Rs ${amount} on ${item} on ${dateLabel}`);
+    }
+  }
+
+  if (!summaryParts.length) {
+    const fallbackText = String(entry?.normalizedText || entry?.rawText || "").trim();
+    return fallbackText || `Transaction recorded on ${dateLabel}`;
+  }
+
+  return summaryParts.join(". ");
+}
+
+async function enrichTransactionEntry(entry) {
+  const summary = buildTransactionSummary(entry);
+  const embedding = await generateEmbedding(summary);
+
+  return {
+    ...entry,
+    summary,
+    ...(Array.isArray(embedding) && embedding.length === 384 ? { embedding } : {}),
+  };
+}
+
 async function saveProcessedTransaction(entry) {
+  const enrichedEntry = await enrichTransactionEntry(entry);
+
   if (isMongoReady()) {
-    return Transaction.create(entry);
+    return Transaction.create(enrichedEntry);
   }
 
   transactions.push({
     id: transactions.length + 1,
     createdAt: new Date().toISOString(),
-    ...entry,
+    ...enrichedEntry,
   });
 
   return transactions[transactions.length - 1];
@@ -58,4 +113,5 @@ module.exports = {
   saveRawLog,
   listTransactions,
   listRawLogs,
+  buildTransactionSummary,
 };

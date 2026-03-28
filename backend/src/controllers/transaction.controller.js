@@ -1,17 +1,17 @@
+const mongoose = require("mongoose");
 const { processTransactionText } = require("../services/extraction.service");
 const {
   saveProcessedTransaction,
   saveRawLog,
   listTransactions,
 } = require("../services/transaction.store");
-const mongoose = require("mongoose");
 
-function normalizeUserId(userId) {
-  if (typeof userId !== "string" || !userId.trim()) {
+function normalizeObjectId(value) {
+  if (typeof value !== "string" || !value.trim()) {
     return null;
   }
 
-  const trimmed = userId.trim();
+  const trimmed = value.trim();
 
   if (mongoose.Types.ObjectId.isValid(trimmed)) {
     return new mongoose.Types.ObjectId(trimmed);
@@ -22,7 +22,7 @@ function normalizeUserId(userId) {
 
 async function processText(req, res, next) {
   try {
-    const { text, userId, save = true } = req.body || {};
+    const { text, userId, businessId, save = true } = req.body || {};
 
     if (typeof text !== "string" || !text.trim()) {
       return res.status(400).json({
@@ -50,9 +50,12 @@ async function processText(req, res, next) {
 
     if (save !== false) {
       const rawLog = await saveRawLog(rawLogPayload);
+      const normalizedUserId = normalizeObjectId(userId);
+      const normalizedBusinessId = normalizeObjectId(businessId);
 
       await saveProcessedTransaction({
-        userId: normalizeUserId(userId),
+        ...(normalizedUserId ? { userId: normalizedUserId } : {}),
+        ...(normalizedBusinessId ? { businessId: normalizedBusinessId } : {}),
         rawText: text,
         normalizedText,
         rawLogId: rawLog?._id || null,
@@ -138,7 +141,9 @@ async function listHistory(req, res, next) {
         ...entry,
         totals: {
           ...entry.totals,
-          netAmount: Number(entry.totals.salesAmount || 0) - Number(entry.totals.expenseAmount || 0),
+          netAmount:
+            Number(entry.totals.salesAmount || 0) -
+            Number(entry.totals.expenseAmount || 0),
         },
       }));
 
@@ -171,7 +176,7 @@ async function saveTransaction(req, res, next) {
     const rawLog = await saveRawLog(rawLogPayload);
 
     const entry = await saveProcessedTransaction({
-      userId: normalizeUserId(userId),
+      userId: normalizeObjectId(userId),
       rawText,
       normalizedText,
       rawLogId: rawLog?._id || null,
