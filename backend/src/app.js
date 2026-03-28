@@ -2,6 +2,8 @@ const express = require("express");
 const cors = require("cors");
 
 const authRoutes = require("./routes/auth.routes");
+const assistantRoutes = require("./routes/assistant.routes");
+const chatRoutes = require("./routes/chat");
 const webhookRoutes = require("./routes/webhook.routes");
 const transactionRoutes = require("./routes/transaction.routes");
 const insightsRoutes = require("./routes/insights.routes");
@@ -23,12 +25,16 @@ app.get("/", (req, res) => {
     service: "voicetrack-backend",
     endpoints: {
       health: "GET /health",
+      assistantQuery: "POST /api/assistant/query",
+      chat: "POST /chat",
       processText: "POST /process-text",
       processTextScoped: "POST /api/transactions/process-text",
     },
   });
 });
 
+app.use("/", chatRoutes);
+app.use("/api/assistant", assistantRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/transactions", transactionRoutes);
