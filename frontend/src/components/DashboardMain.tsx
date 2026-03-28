@@ -5,12 +5,13 @@ import { getInsights, getTransactionHistory, type HistoryEntry, type InsightsRes
 
 interface DashboardMainProps {
   userId: string
+  businessId: string
   userName: string
   onToggleSidebar: () => void
   language: 'EN' | 'HI'
 }
 
-export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, userName, onToggleSidebar, language }) => {
+export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessId, userName, onToggleSidebar, language }) => {
   const [displayBalance, setDisplayBalance] = useState(0)
   const [showAnalytics, setShowAnalytics] = useState(false)
   const [insights, setInsights] = useState<InsightsResult>({
@@ -176,6 +177,8 @@ export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, userName, 
           onClose={() => setShowAnalytics(false)}
           insights={insights}
           history={history}
+          userId={userId}
+          businessId={businessId}
           language={language}
         />
       )}

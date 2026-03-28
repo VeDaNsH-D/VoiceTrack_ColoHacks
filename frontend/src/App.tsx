@@ -4,6 +4,7 @@ import { Landing } from './components/Landing'
 import { Auth } from './components/Auth'
 import { History } from './components/History'
 import { DashboardMain } from './components/DashboardMain'
+import { AIInsightsPage } from './components/AIInsightsPage'
 import { AIVoiceScreen } from './components/AIVoiceScreen'
 import { Chatbot } from './components/Chatbot'
 import { Sidebar } from './components/Sidebar'
@@ -11,7 +12,7 @@ import { setAuthToken } from './services/api'
 import './App.css'
 import './index.css'
 
-export type ViewState = 'landing' | 'auth' | 'voice' | 'dashboard' | 'history' | 'chat'
+export type ViewState = 'landing' | 'auth' | 'voice' | 'dashboard' | 'insights' | 'history' | 'chat'
 
 export interface AuthSession {
   userId: string
@@ -139,7 +140,31 @@ export function App() {
             exit={{ opacity: 0 }}
             className="flex-1 overflow-y-auto"
           >
-            <DashboardMain userId={session?.userId || ''} userName={userName} onToggleSidebar={toggleSidebar} language={language} />
+            <DashboardMain
+              userId={session?.userId || ''}
+              businessId={session?.businessId || ''}
+              userName={userName}
+              onToggleSidebar={toggleSidebar}
+              language={language}
+            />
+          </motion.div>
+        )}
+
+        {currentView === 'insights' && (
+          <motion.div
+            key="insights"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex-1 overflow-y-auto"
+          >
+            <AIInsightsPage
+              userId={session?.userId || ''}
+              businessId={session?.businessId || ''}
+              userName={userName}
+              onToggleSidebar={toggleSidebar}
+              language={language}
+            />
           </motion.div>
         )}
 

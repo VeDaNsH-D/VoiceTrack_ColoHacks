@@ -84,6 +84,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate, c
                   isActive={currentView === 'dashboard'} 
                   onClick={() => { onNavigate('dashboard'); onClose(); }} 
                 />
+                <MenuButton
+                  label={language === 'EN' ? 'AI Insights' : 'AI इनसाइट्स'}
+                  icon={
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l2.4 4.86L20 9l-4 3.9.94 5.47L12 15.9l-4.94 2.6L8 12.9 4 9l5.6-1.14L12 3z"></path></svg>
+                  }
+                  isActive={currentView === 'insights'}
+                  onClick={() => { onNavigate('insights'); onClose(); }}
+                />
                 <MenuButton 
                   label={language === 'EN' ? "Ledger History" : "लेजर इतिहास"} 
                   icon={

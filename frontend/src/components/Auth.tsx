@@ -78,11 +78,10 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
       onLogin({
         userId: authResult.user._id,
         name: authResult.user.name || name.trim(),
-        occupation: occupation.trim(),
         token: authResult.token,
         identifier,
-        businessCode: authResult.user.businessId?.businessCode,
-        businessId: authResult.user.businessId?._id,
+        businessCode: authResult.user.businessId?.businessCode || authResult.business?.businessCode,
+        businessId: authResult.user.businessId?._id || authResult.business?._id,
       })
     } catch (apiError: unknown) {
       const isNetworkIssue = axios.isAxiosError(apiError) && !apiError.response
@@ -123,11 +122,10 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
       onLogin({
         userId: authResult.user._id,
         name: authResult.user.name || 'User',
-        occupation: authResult.user.businessId?.type || '',
         token: authResult.token,
         identifier: normalizedIdentifier,
-        businessCode: authResult.user.businessId?.businessCode,
-        businessId: authResult.user.businessId?._id,
+        businessCode: authResult.user.businessId?.businessCode || authResult.business?.businessCode,
+        businessId: authResult.user.businessId?._id || authResult.business?._id,
       })
     } catch (apiError: unknown) {
       const isNetworkIssue = axios.isAxiosError(apiError) && !apiError.response

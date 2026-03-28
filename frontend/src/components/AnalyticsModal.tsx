@@ -1,11 +1,14 @@
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { getAnalyticsDashboard } from '../services/api'
 import type { HistoryEntry, InsightsResult } from '../services/api'
 
 interface AnalyticsModalProps {
   onClose: () => void
   insights: InsightsResult
   history: HistoryEntry[]
+  userId: string
+  businessId: string
   language: 'EN' | 'HI'
 }
 
@@ -44,11 +47,51 @@ function buildAiAdvice(insights: InsightsResult, language: 'EN' | 'HI') {
     : `खर्च ₹${Math.round(Math.abs(balance)).toLocaleString('en-IN')} से आगे हैं। हाल की लागत देखें और गैर-ज़रूरी खर्च कम करें।`
 }
 
-export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({ onClose, insights, history, language }) => {
+export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({
+  onClose,
+  insights,
+  history,
+  userId,
+  businessId,
+  language,
+}) => {
   const barData = React.useMemo(() => buildBarData(history), [history])
   const peakValue = Math.max(1, ...barData.map((item) => item.sales + item.expenses))
   const aiAdvice = buildAiAdvice(insights, language)
   const balance = Math.max(0, insights.totals.sales - insights.totals.expenses)
+  const [dashboard, setDashboard] = React.useState<any>(null)
+  const [loading, setLoading] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!userId || !businessId) {
+      setDashboard(null)
+      return
+    }
+
+    let mounted = true
+    setLoading(true)
+
+    void getAnalyticsDashboard({ userId, businessId })
+      .then((data) => {
+        if (mounted) {
+          setDashboard(data)
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setDashboard(null)
+        }
+      })
+      .finally(() => {
+        if (mounted) {
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [userId, businessId])
 
   return (
     <AnimatePresence>
@@ -122,13 +165,63 @@ export const AnalyticsModal: React.FC<AnalyticsModalProps> = ({ onClose, insight
         </div>
 
         {/* AI Advice Bottom Card */}
-        <div className="px-6 pb-12 pt-8">
+        <div className="px-6 pb-6 pt-8">
           <p className="text-[13px] font-medium text-[#1A1A1A] opacity-80 mb-3">
             {language === 'EN' ? 'AI advice' : 'AI सलाह'}
           </p>
           <h2 className="text-3xl font-semibold text-[#1A1A1A] leading-[1.1] tracking-tight">
             {aiAdvice}
           </h2>
+        </div>
+
+        <div className="px-6 pb-28 space-y-4 overflow-y-auto">
+          <div className="glass-card p-4 rounded-2xl">
+            <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Demand Prediction</p>
+            {loading ? (
+              <p className="text-xs text-[#1A1A1A]/60">Loading...</p>
+            ) : (
+              <div className="space-y-1 text-sm text-[#1A1A1A]/80">
+                <p>Next day: ₹{Math.round(dashboard?.demandForecast?.nextDay?.predictedSales || 0).toLocaleString('en-IN')}</p>
+                <p>Top forecast items: {(dashboard?.demandForecast?.itemWise || []).slice(0, 3).map((item: any) => item.itemName).join(', ') || 'N/A'}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="glass-card p-4 rounded-2xl">
+            <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Profit Analysis</p>
+            <div className="space-y-1 text-sm text-[#1A1A1A]/80">
+              <p>High-margin items: {dashboard?.profitAnalysis?.margins?.highMarginItems?.length || 0}</p>
+              <p>Low-margin items: {dashboard?.profitAnalysis?.margins?.lowMarginItems?.length || 0}</p>
+              <p>Top profit item: {dashboard?.profitAnalysis?.topItems?.[0]?.itemName || 'N/A'}</p>
+            </div>
+          </div>
+
+          <div className="glass-card p-4 rounded-2xl">
+            <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Pattern and Clustering</p>
+            <div className="space-y-1 text-sm text-[#1A1A1A]/80">
+              <p>Star products: {dashboard?.patterns?.clusters?.summary?.starProducts || 0}</p>
+              <p>Average basket size: {dashboard?.patterns?.customerBehavior?.avgBasketSize || '0.00'}</p>
+            </div>
+          </div>
+
+          <div className="glass-card p-4 rounded-2xl">
+            <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Association Intelligence</p>
+            <p className="text-sm text-[#1A1A1A]/80">
+              Combo suggestions: {(dashboard?.recommendations?.suggestions || []).slice(0, 2).map((s: any) => s.combo?.join(' + ')).join(' | ') || 'N/A'}
+            </p>
+          </div>
+
+          <div className="glass-card p-4 rounded-2xl">
+            <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Anomaly Detection</p>
+            <p className="text-sm text-[#1A1A1A]/80">Active alerts: {dashboard?.anomalies?.alerts?.length || 0}</p>
+          </div>
+
+          <div className="glass-card p-4 rounded-2xl">
+            <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Personalization and AI Coach</p>
+            <p className="text-sm text-[#1A1A1A]/80">
+              Learned frequent items: {dashboard?.personalization?.frequentItems?.length || 0}
+            </p>
+          </div>
         </div>
 
         {/* Bottom Nav overlay for fidelity (Image 2 also includes bottom nav) */}

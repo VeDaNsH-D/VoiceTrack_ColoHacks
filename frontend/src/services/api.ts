@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { DailyEntry, WeeklyAnalytics } from '../types'
 
 const API_BASE = (
   import.meta.env.VITE_API_BASE_URL?.trim() ||
@@ -352,6 +353,317 @@ export async function getInsights(userId?: string): Promise<InsightsResult> {
     params: userId ? { userId } : undefined,
   })
   return unwrapApiResponse<InsightsResult>(response.data)
+}
+
+export async function getDailyEntries(limit = 30, userId?: string): Promise<DailyEntry[]> {
+  const history = await getTransactionHistory({ limit, userId })
+  return history.transactions.map((transaction) => {
+    const items = (transaction.sales || []).map((sale, index) => ({
+      id: `${transaction.id}-item-${index}`,
+      name: sale.item,
+      quantity: sale.qty,
+      unit: 'unit',
+      pricePerUnit: sale.price,
+      totalPrice: sale.qty * sale.price,
+      confidence: transaction.meta?.confidence ?? 0.7,
+      highlighted: false,
+    }))
+
+    const expenses = (transaction.expenses || []).map((expense, index) => ({
+      id: `${transaction.id}-exp-${index}`,
+      category: 'other' as const,
+      amount: expense.amount,
+      description: expense.item,
+      confidence: transaction.meta?.confidence ?? 0.7,
+      highlighted: false,
+    }))
+
+    return {
+      id: transaction.id,
+      date: transaction.createdAt,
+      transcript: transaction.rawText,
+      items,
+      expenses,
+      totalEarnings: transaction.totals.salesAmount,
+      totalExpenses: transaction.totals.expenseAmount,
+      confidence: transaction.meta?.confidence ?? 0.7,
+      flagged: Boolean(transaction.meta?.needsClarification),
+      ambiguities: [],
+      createdAt: transaction.createdAt,
+    }
+  })
+}
+
+export async function getLastWeekAnalystics(userId?: string): Promise<WeeklyAnalytics> {
+  const entries = await getDailyEntries(60, userId)
+  const today = new Date()
+  const weekAgo = new Date()
+  weekAgo.setDate(today.getDate() - 7)
+
+  const weekly = entries.filter((entry) => new Date(entry.date) >= weekAgo)
+  const totalEarnings = weekly.reduce((sum, entry) => sum + entry.totalEarnings, 0)
+  const totalExpenses = weekly.reduce((sum, entry) => sum + entry.totalExpenses, 0)
+
+  const itemAgg = new Map<string, { frequency: number; quantity: number }>()
+  const expAgg = new Map<string, number>()
+
+  weekly.forEach((entry) => {
+    entry.items.forEach((item) => {
+      const row = itemAgg.get(item.name) || { frequency: 0, quantity: 0 }
+      row.frequency += 1
+      row.quantity += Number(item.quantity || 0)
+      itemAgg.set(item.name, row)
+    })
+
+    entry.expenses.forEach((expense) => {
+      expAgg.set(expense.category, (expAgg.get(expense.category) || 0) + Number(expense.amount || 0))
+    })
+  })
+
+  const trendItems = Array.from(itemAgg.entries())
+    .sort((a, b) => b[1].frequency - a[1].frequency)
+    .slice(0, 10)
+    .map(([name, row]) => ({
+      name,
+      frequency: row.frequency,
+      avgQuantity: Number((row.quantity / Math.max(1, row.frequency)).toFixed(2)),
+    }))
+
+  const trendExpenses = Array.from(expAgg.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([category, total]) => ({ category, total }))
+
+  const insights: string[] = []
+  if (trendItems[0]) {
+    insights.push(`${trendItems[0].name} is your most frequent item this week.`)
+  }
+  if (totalEarnings > totalExpenses) {
+    insights.push('You stayed profitable this week.')
+  } else {
+    insights.push('Expenses were higher than earnings this week; review cost-heavy entries.')
+  }
+
+  return {
+    week: `${weekAgo.toISOString().slice(0, 10)} to ${today.toISOString().slice(0, 10)}`,
+    totalEarnings,
+    totalExpenses,
+    totalProfit: totalEarnings - totalExpenses,
+    avgDailyEarnings: Number((totalEarnings / 7).toFixed(2)),
+    trends: {
+      items: trendItems,
+      expenses: trendExpenses,
+    },
+    insights,
+  }
+}
+
+export async function getAnalyticsDashboard(params: {
+  userId: string
+  businessId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/dashboard', { params })
+  const payload = unwrapApiResponse<any>(response.data)
+  if (payload && typeof payload === 'object' && 'dashboard' in payload) {
+    return (payload as { dashboard: unknown }).dashboard
+  }
+  return payload
+}
+
+export async function getNextDayDemand(params: {
+  userId: string
+  businessId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/demand/next-day', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getItemWiseDemand(params: {
+  userId: string
+  businessId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/demand/item-wise', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getDemandPatterns(params: {
+  userId: string
+  businessId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/demand/time-patterns', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getSeasonalDemandTrends(params: {
+  userId: string
+  businessId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/demand/seasonal-trends', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getProfitPerItem(params: {
+  userId: string
+  businessId: string
+  period?: 'daily' | 'weekly' | 'monthly'
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/profit/item-analysis', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getProfitMargins(params: {
+  userId: string
+  businessId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/profit/margins', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getMarginChangeAlerts(params: {
+  userId: string
+  businessId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/alerts/margin-changes', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getItemClusters(params: {
+  userId: string
+  businessId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/patterns/clusters', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getCustomerPatterns(params: {
+  userId: string
+  businessId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/patterns/customer-behavior', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getMarketBasketCombos(params: {
+  userId: string
+  businessId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/recommendations/combos', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getCrossSellSuggestions(params: {
+  userId: string
+  businessId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/recommendations/suggestions', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getAnomalyAlerts(params: {
+  userId: string
+  businessId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/alerts/anomalies', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function resolveAnomalyAlert(alertId: string, params: {
+  userId: string
+}): Promise<any> {
+  const response = await apiClient.post<ApiEnvelope<any> | any>(`/api/analytics/alerts/resolve/${alertId}`, null, { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getPersonalizationProfile(params: {
+  userId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/personalization/profile', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getAutoFillEntries(params: {
+  userId: string
+  q?: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/personalization/autofill', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getVendorPatterns(params: {
+  userId: string
+  businessId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/vendors/patterns', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getVendorRecommendations(params: {
+  userId: string
+  businessId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/vendors/recommendations', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getGlobalIntelligence(params: {
+  userId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/global/intelligence', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getCoachProactiveSuggestions(params: {
+  userId: string
+  businessId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/coach/proactive', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function askBusinessCoach(payload: {
+  userId: string
+  businessId: string
+  question: string
+}): Promise<any> {
+  const response = await apiClient.post<ApiEnvelope<any> | any>('/api/analytics/coach/qa', payload)
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getDecisionGuidance(payload: {
+  userId: string
+  businessId: string
+  decision?: string
+}): Promise<any> {
+  const { userId, businessId, ...body } = payload
+  const response = await apiClient.post<ApiEnvelope<any> | any>('/api/analytics/coach/decision-guidance', body, {
+    params: { userId, businessId },
+  })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getVoiceCoaching(params: {
+  userId: string
+  businessId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/coach/voice', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function getDemandModelProfile(params: {
+  userId: string
+  businessId: string
+}): Promise<any> {
+  const response = await apiClient.get<ApiEnvelope<any> | any>('/api/analytics/model/profile', { params })
+  return unwrapApiResponse<any>(response.data)
+}
+
+export async function trainDemandModel(payload: {
+  userId: string
+  businessId: string
+  lookbackDays?: number
+  horizonDays?: number
+}): Promise<any> {
+  const response = await apiClient.post<ApiEnvelope<any> | any>('/api/analytics/model/train', payload)
+  return unwrapApiResponse<any>(response.data)
 }
 
 export async function askAssistant(payload: {
