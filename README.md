@@ -2,6 +2,11 @@
 
 This repository contains the VoiceTrack frontend and backend services.
 
+Detailed service docs:
+
+- backend/README.md
+- app/README.md
+
 ## Frontend
 
 The frontend is a React + Vite application.

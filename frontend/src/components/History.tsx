@@ -316,12 +316,26 @@ export const History: React.FC<HistoryProps> = ({ userId, onToggleSidebar, langu
                     <span className="text-[11px] font-bold text-[#1A1A1A] opacity-50 tracking-wide uppercase">
                       {formatStatementDateTime(item.createdAt, language)}
                     </span>
-                    <div className="flex gap-2">
-                      <span className="text-xs font-semibold text-[#8A9B80] bg-[#8A9B80] bg-opacity-20 px-2 py-1 rounded">+₹{Math.round(item.totals.salesAmount || 0)}</span>
-                      {(item.totals.expenseAmount || 0) > 0 && (
-                        <span className="text-xs font-semibold text-[#F85F54] bg-[#F85F54] bg-opacity-10 px-2 py-1 rounded">-₹{Math.round(item.totals.expenseAmount || 0)}</span>
-                      )}
-                    </div>
+                    {(() => {
+                      const netAmount = Number(item.totals.netAmount || 0)
+                      const isProfit = netAmount > 0
+                      const isLoss = netAmount < 0
+                      const amount = Math.round(Math.abs(netAmount))
+
+                      const label = isProfit
+                        ? (language === 'EN' ? `Net Profit: +₹${amount}` : `नेट लाभ: +₹${amount}`)
+                        : isLoss
+                          ? (language === 'EN' ? `Net Loss: -₹${amount}` : `नेट नुकसान: -₹${amount}`)
+                          : (language === 'EN' ? 'Net: ₹0' : 'नेट: ₹0')
+
+                      const classes = isProfit
+                        ? 'text-xs font-semibold text-[#8A9B80] bg-[#8A9B80]/20 px-2 py-1 rounded'
+                        : isLoss
+                          ? 'text-xs font-semibold text-[#F85F54] bg-[#F85F54]/10 px-2 py-1 rounded'
+                          : 'text-xs font-semibold text-[#1A1A1A]/70 bg-[#1A1A1A]/10 px-2 py-1 rounded'
+
+                      return <span className={classes}>{label}</span>
+                    })()}
                   </div>
                   <p className="text-sm font-medium text-[#1A1A1A] leading-relaxed">
                     {item.rawText}
