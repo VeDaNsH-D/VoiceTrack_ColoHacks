@@ -155,6 +155,14 @@ export interface ChatResult {
   audioUrl: string | null
 }
 
+export interface STTUploadResult {
+  message?: string
+  raw_text?: string
+  final_text?: string
+  source?: string
+  confidence?: number
+}
+
 export interface ConversationStructuredData {
   sales: Array<{ item: string; qty: number; price: number }>
   expenses: Array<{ item: string; amount: number }>
