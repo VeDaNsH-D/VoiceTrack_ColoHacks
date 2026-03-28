@@ -1,5 +1,6 @@
 const axios = require("axios");
 const env = require("../config/env");
+const { preprocessText } = require("../utils/normalization");
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = "llama3-8b-8192";
@@ -31,27 +32,37 @@ const ALLOWED_TIME_RANGES = new Set([
 ]);
 
 const TIME_RANGE_PATTERNS = [
-  { pattern: /\b(aaj|today)\b/i, value: "today" },
-  { pattern: /\b(kal|yesterday)\b/i, value: "yesterday" },
-  { pattern: /\b(pichle hafte|last week|pichla hafta|pichhle hafte)\b/i, value: "last_week" },
-  { pattern: /\b(pichle mahine|last month|pichla mahina|pichhle mahine)\b/i, value: "last_month" },
+  { pattern: /\b(aaj|today|आज)\b/i, value: "today" },
+  { pattern: /\b(kal|yesterday|कल)\b/i, value: "yesterday" },
+  { pattern: /\b(pichle hafte|last week|pichla hafta|pichhle hafte|पिछले हफ्ते|पिछला हफ्ता|पिछले सप्ताह)\b/i, value: "last_week" },
+  { pattern: /\b(pichle mahine|last month|pichla mahina|pichhle mahine|पिछले महीने|पिछला महीना)\b/i, value: "last_month" },
 ];
 
 const TOP_PRODUCT_PATTERNS = [
-  /\b(top product|sabse zyada|most sold|best selling|sabse jyada)\b/i,
+  /\b(top product|sabse zyada|most sold|best selling|sabse jyada|सबसे ज्यादा|सबसे अधिक|टॉप प्रोडक्ट|सबसे बिका)\b/i,
 ];
 
 const SALES_COUNT_PATTERNS = [
-  /\b(transaction|transactions|entries|kitne bill|kitni sale hui|sales count|count)\b/i,
+  /\b(transaction|transactions|entries|kitne bill|kitni sale hui|sales count|count|लेनदेन|ट्रांजैक्शन|कितने बिल|कितनी बिक्री हुई|गिनती|संख्या)\b/i,
 ];
 
 const PROFIT_PATTERNS = [
-  /\b(profit|fayda|faida|munafa|net|net amount|net profit|nuksan|loss)\b/i,
+  /\b(profit|fayda|faida|munafa|net|net amount|net profit|nuksan|loss|मुनाफा|फायदा|लाभ|घाटा|नुकसान|नेट प्रॉफिट)\b/i,
 ];
 
 const PRODUCT_SALES_PATTERNS = [
-  /\b(kitne bike|kitna bika|kitni biki|sold|bika|biki)\b/i,
+  /\b(kitne bike|kitna bika|kitni biki|sold|bika|biki|कितने बिके|कितना बिका|कितनी बिकी|बिका|बिकी|बिके)\b/i,
 ];
+
+const TOP_PRODUCT_TERMS = ["सबसे ज्यादा", "सबसे अधिक", "टॉप प्रोडक्ट", "सबसे बिका"];
+const SALES_COUNT_TERMS = ["लेनदेन", "ट्रांजैक्शन", "ट्रांजेक्शन", "गिनती", "संख्या", "काउंट", "कितने ट्रांजैक्शन"];
+const PROFIT_TERMS = ["प्रॉफिट", "मुनाफा", "फायदा", "लाभ", "घाटा", "नुकसान", "नेट प्रॉफिट"];
+const PRODUCT_SALES_TERMS = ["कितना बिका", "कितनी बिकी", "कितने बिके", "बिका", "बिकी", "बिके"];
+const TOTAL_SALES_TERMS = ["बेचा", "बिक्री", "सेल्स", "राजस्व", "कुल बिक्री", "टोटल सेल", "आज की बिक्री", "कुल"];
+
+function containsAnyPhrase(message, terms) {
+  return terms.some((term) => message.includes(term));
+}
 
 function getUnknownIntent() {
   return {
@@ -114,6 +125,22 @@ function parseIntentResponse(rawContent) {
 }
 
 function inferTimeRange(message) {
+  if (containsAnyPhrase(message, ["आज"])) {
+    return "today";
+  }
+
+  if (containsAnyPhrase(message, ["कल"])) {
+    return "yesterday";
+  }
+
+  if (containsAnyPhrase(message, ["पिछले हफ्ते", "पिछला हफ्ता", "पिछले सप्ताह"])) {
+    return "last_week";
+  }
+
+  if (containsAnyPhrase(message, ["पिछले महीने", "पिछला महीना"])) {
+    return "last_month";
+  }
+
   for (const rule of TIME_RANGE_PATTERNS) {
     if (rule.pattern.test(message)) {
       return rule.value;
@@ -176,6 +203,31 @@ function extractProductFromMessage(message) {
     "sabse",
     "zyada",
     "jyada",
+    "आज",
+    "कल",
+    "पिछले",
+    "पिछला",
+    "हफ्ते",
+    "हफ्ता",
+    "सप्ताह",
+    "महीने",
+    "महीना",
+    "कुल",
+    "बिक्री",
+    "सेल्स",
+    "राजस्व",
+    "कितना",
+    "कितनी",
+    "कितने",
+    "मुनाफा",
+    "फायदा",
+    "नुकसान",
+    "टॉप",
+    "प्रोडक्ट",
+    "लेनदेन",
+    "ट्रांजैक्शन",
+    "गिनती",
+    "संख्या",
   ]);
 
   const words = normalizedMessage
@@ -190,7 +242,7 @@ function extractProductFromMessage(message) {
 }
 
 function inferIntentFromRules(message) {
-  const normalizedMessage = String(message || "").trim().toLowerCase();
+  const normalizedMessage = preprocessText(String(message || "")).trim().toLowerCase();
 
   if (!normalizedMessage) {
     return getUnknownIntent();
@@ -199,7 +251,7 @@ function inferIntentFromRules(message) {
   const timeRange = inferTimeRange(normalizedMessage);
   const product = extractProductFromMessage(normalizedMessage);
 
-  if (TOP_PRODUCT_PATTERNS.some((pattern) => pattern.test(normalizedMessage))) {
+  if (TOP_PRODUCT_PATTERNS.some((pattern) => pattern.test(normalizedMessage)) || containsAnyPhrase(normalizedMessage, TOP_PRODUCT_TERMS)) {
     return {
       intent: "GET_TOP_PRODUCT",
       timeRange,
@@ -207,7 +259,7 @@ function inferIntentFromRules(message) {
     };
   }
 
-  if (SALES_COUNT_PATTERNS.some((pattern) => pattern.test(normalizedMessage))) {
+  if (SALES_COUNT_PATTERNS.some((pattern) => pattern.test(normalizedMessage)) || containsAnyPhrase(normalizedMessage, SALES_COUNT_TERMS)) {
     return {
       intent: "GET_SALES_COUNT",
       timeRange,
@@ -215,7 +267,7 @@ function inferIntentFromRules(message) {
     };
   }
 
-  if (PROFIT_PATTERNS.some((pattern) => pattern.test(normalizedMessage))) {
+  if (PROFIT_PATTERNS.some((pattern) => pattern.test(normalizedMessage)) || containsAnyPhrase(normalizedMessage, PROFIT_TERMS)) {
     return {
       intent: "GET_PROFIT",
       timeRange,
@@ -223,7 +275,7 @@ function inferIntentFromRules(message) {
     };
   }
 
-  if (PRODUCT_SALES_PATTERNS.some((pattern) => pattern.test(normalizedMessage)) && product) {
+  if ((PRODUCT_SALES_PATTERNS.some((pattern) => pattern.test(normalizedMessage)) || containsAnyPhrase(normalizedMessage, PRODUCT_SALES_TERMS)) && product) {
     return {
       intent: "GET_PRODUCT_SALES",
       timeRange,
@@ -232,7 +284,8 @@ function inferIntentFromRules(message) {
   }
 
   if (
-    /\b(becha|bikri|sales|sale|revenue|kitna|kitni)\b/i.test(normalizedMessage)
+    /\b(becha|bikri|sales|sale|revenue|kitna|kitni|बेचा|बिक्री|सेल्स|राजस्व|कुल)\b/i.test(normalizedMessage)
+    || containsAnyPhrase(normalizedMessage, TOTAL_SALES_TERMS)
   ) {
     return {
       intent: "GET_TOTAL_SALES",

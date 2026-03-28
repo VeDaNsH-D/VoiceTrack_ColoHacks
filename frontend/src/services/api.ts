@@ -155,6 +155,14 @@ export interface ChatResult {
   audioUrl: string | null
 }
 
+export interface STTUploadResult {
+  message?: string
+  raw_text?: string
+  final_text?: string
+  source?: string
+  confidence?: number
+}
+
 export interface ConversationStructuredData {
   sales: Array<{ item: string; qty: number; price: number }>
   expenses: Array<{ item: string; amount: number }>
@@ -760,6 +768,59 @@ export async function undoLastVoiceTransaction(payload: {
     payload
   )
   return unwrapApiResponse<{ undoneId: string; rawText: string }>(response.data)
+}
+
+function resolveVoiceAudioUrl(audioUrl: string): string {
+  if (!audioUrl) {
+    return ''
+  }
+
+  if (/^https?:\/\//i.test(audioUrl)) {
+    return audioUrl
+  }
+
+  const normalizedPath = audioUrl.startsWith('/') ? audioUrl : `/${audioUrl}`
+  return `${VOICE_API_BASE}${normalizedPath}`
+}
+
+export async function transcribeAudioForAssistant(payload: {
+  audioBlob: Blob
+}): Promise<{ transcript: string; source?: string; confidence?: number }> {
+  const formData = new FormData()
+  formData.append('file', payload.audioBlob, 'recording.wav')
+
+  const response = await voiceApiClient.post<ApiEnvelope<STTUploadResult> | STTUploadResult>('/stt', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+
+  const data = unwrapApiResponse<STTUploadResult>(response.data)
+  const transcript = String(data.final_text || data.message || data.raw_text || '').trim()
+
+  return {
+    transcript,
+    source: data.source,
+    confidence: data.confidence,
+  }
+}
+
+export async function synthesizeAssistantAudio(payload: {
+  text: string
+  language?: 'en' | 'hi'
+}): Promise<string | null> {
+  const response = await voiceApiClient.post<ApiEnvelope<{ audioUrl: string }> | { audioUrl: string }>('/tts', {
+    text: payload.text,
+    language: payload.language || 'hi',
+  })
+
+  const data = unwrapApiResponse<{ audioUrl: string }>(response.data)
+  const audioUrl = String(data.audioUrl || '').trim()
+  if (!audioUrl) {
+    return null
+  }
+
+  return resolveVoiceAudioUrl(audioUrl)
 }
 
 export async function getProtectedProfile(): Promise<{ success: boolean; user: unknown }> {

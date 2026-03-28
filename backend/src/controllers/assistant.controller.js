@@ -2,11 +2,26 @@ const { extractIntent } = require("../services/intentService");
 const { handleQuery } = require("../services/queryService");
 const { generateResponse } = require("../services/responseService");
 const { getRelevantContext } = require("../services/vectorService");
+const { preprocessText } = require("../utils/normalization");
 const { sendSuccess, sendError } = require("../utils/apiResponse");
 
 function isHindiLike(text) {
   const input = String(text || "");
-  return /[\u0900-\u097F]/.test(input) || /\b(aaj|kal|kitna|kitni|bikri|fayda|nuksan|sabse)\b/i.test(input);
+  return /[\u0900-\u0D7F]/.test(input) || /\b(aaj|kal|kitna|kitni|bikri|fayda|nuksan|sabse|sales|profit|transaction|top)\b/i.test(input);
+}
+
+function detectReplyLanguage(text) {
+  return /[\u0900-\u097F]/.test(String(text || "")) ? "hi" : "en";
+}
+
+function normalizeForIntent(message) {
+  const rawMessage = String(message || "").trim();
+  if (!rawMessage) {
+    return "";
+  }
+
+  const normalized = preprocessText(rawMessage);
+  return normalized || rawMessage.toLowerCase();
 }
 
 function formatRupee(value) {
@@ -14,16 +29,16 @@ function formatRupee(value) {
   return `₹${Math.round(amount).toLocaleString("en-IN")}`;
 }
 
-function buildClarification(message) {
-  if (isHindiLike(message)) {
-    return "Main samjha nahi. Kya aap total sales, profit/fayda, kisi item ki sales, top product, ya transaction count ke baare mein puchhna chahte hain?";
+function buildClarification(language) {
+  if (language === "hi") {
+    return "मैं समझ नहीं पाया। क्या आप कुल बिक्री, प्रॉफिट, किसी आइटम की बिक्री, टॉप प्रोडक्ट, या ट्रांजैक्शन काउंट के बारे में पूछना चाहते हैं?";
   }
 
   return "I could not understand that clearly. Please ask about total sales, profit, product sales, top product, or transaction count.";
 }
 
-function buildGroundedReply(message, queryResult) {
-  const hindi = isHindiLike(message);
+function buildGroundedReply(queryResult, language) {
+  const hindi = language === "hi";
   const type = queryResult?.type;
 
   if (type === "total_sales") {
@@ -72,7 +87,7 @@ function buildGroundedReply(message, queryResult) {
       : `Your net loss is ${formatRupee(Math.abs(profit))}.`;
   }
 
-  return buildClarification(message);
+  return buildClarification(language);
 }
 
 async function queryAssistant(req, res) {
@@ -87,22 +102,25 @@ async function queryAssistant(req, res) {
   }
 
   try {
-    const intent = await extractIntent(message);
+    const rawMessage = message.trim();
+    const replyLanguage = detectReplyLanguage(rawMessage);
+    const normalizedMessage = normalizeForIntent(rawMessage);
+    const intent = await extractIntent(normalizedMessage || rawMessage);
     const queryResult = await handleQuery(userId.trim(), intent);
     const isUnknown = queryResult?.type === "unknown";
-    const clarificationQuestion = isUnknown ? buildClarification(message) : null;
+    const clarificationQuestion = isUnknown ? buildClarification(replyLanguage) : null;
     const contextDocs = isUnknown
       ? []
-      : await getRelevantContext(userId.trim(), message);
+      : await getRelevantContext(userId.trim(), rawMessage);
     const response = isUnknown
       ? { reply: clarificationQuestion, audioNeeded: true }
-      : await generateResponse(message, queryResult, contextDocs.join("\n"));
+      : await generateResponse(rawMessage, queryResult, contextDocs.join("\n"), replyLanguage);
 
     return sendSuccess(res, {
       intent,
       queryResult,
       contextDocs,
-      reply: response?.reply || buildGroundedReply(message, queryResult),
+      reply: response?.reply || buildGroundedReply(queryResult, replyLanguage),
       audioNeeded: true,
       needsClarification: isUnknown,
       clarificationQuestion,
