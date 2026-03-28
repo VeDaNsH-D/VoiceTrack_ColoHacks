@@ -6,6 +6,7 @@ const webhookRoutes = require("./routes/webhook.routes");
 const transactionRoutes = require("./routes/transaction.routes");
 const insightsRoutes = require("./routes/insights.routes");
 const errorMiddleware = require("./middlewares/error.middleware");
+const authMiddleware = require("./middlewares/auth.middleware");
 
 const app = express();
 
@@ -32,6 +33,14 @@ app.use("/api/auth", authRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/insights", insightsRoutes);
+
+app.get("/api/protected", authMiddleware, (req, res) => {
+  res.status(200).json({
+    success: true,
+    user: req.user,
+  });
+});
+
 app.use("/", transactionRoutes);
 
 app.use((req, res) => {
