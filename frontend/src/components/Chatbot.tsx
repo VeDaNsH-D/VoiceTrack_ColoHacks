@@ -3,15 +3,25 @@ import { motion } from 'framer-motion'
 
 interface ChatbotProps {
   onToggleSidebar: () => void
+  language: 'EN' | 'HI'
 }
 
-export const Chatbot: React.FC<ChatbotProps> = ({ onToggleSidebar }) => {
+export const Chatbot: React.FC<ChatbotProps> = ({ onToggleSidebar, language }) => {
   const [inputText, setInputText] = useState('')
   const [messages, setMessages] = useState([
-    { id: 1, sender: 'ai', text: 'Hi! I am your VoiceTrace business assistant. I know all your past transactions. What would you like to know today?' },
-    { id: 2, sender: 'user', text: 'How much did I spend on transport this week?' },
-    { id: 3, sender: 'ai', text: 'Based on your voice records from Tuesday and Thursday, you spent ₹200 and ₹150 on transport, totaling ₹350 this week.' },
+    { id: 1, sender: 'ai', text: language === 'EN' ? 'Hi! I am your VoiceTrace business assistant. I know all your past transactions. What would you like to know today?' : 'नमस्ते! मैं आपका VoiceTrace बिजनेस असिस्टेंट हूँ। मैं आपके पिछले सभी लेन-देन जानता हूँ। आज आप क्या जानना चाहेंगे?' },
+    { id: 2, sender: 'user', text: language === 'EN' ? 'How much did I spend on transport this week?' : 'मैंने इस सप्ताह परिवहन पर कितना खर्च किया?' },
+    { id: 3, sender: 'ai', text: language === 'EN' ? 'Based on your voice records from Tuesday and Thursday, you spent ₹200 and ₹150 on transport, totaling ₹350 this week.' : 'मंगलवार और गुरुवार के आपके वॉयस रिकॉर्ड के आधार पर, आपने परिवहन पर ₹200 और ₹150 खर्च किए, जो इस सप्ताह कुल ₹350 है।' },
   ])
+
+  // Update messages completely if language changes (mock hot reload)
+  React.useEffect(() => {
+    setMessages([
+      { id: 1, sender: 'ai', text: language === 'EN' ? 'Hi! I am your VoiceTrace business assistant. I know all your past transactions. What would you like to know today?' : 'नमस्ते! मैं आपका VoiceTrace बिजनेस असिस्टेंट हूँ। मैं आपके पिछले सभी लेन-देन जानता हूँ। आज आप क्या जानना चाहेंगे?' },
+      { id: 2, sender: 'user', text: language === 'EN' ? 'How much did I spend on transport this week?' : 'मैंने इस सप्ताह परिवहन पर कितना खर्च किया?' },
+      { id: 3, sender: 'ai', text: language === 'EN' ? 'Based on your voice records from Tuesday and Thursday, you spent ₹200 and ₹150 on transport, totaling ₹350 this week.' : 'मंगलवार और गुरुवार के आपके वॉयस रिकॉर्ड के आधार पर, आपने परिवहन पर ₹200 और ₹150 खर्च किए, जो इस सप्ताह कुल ₹350 है।' },
+    ])
+  }, [language])
 
   const handleSend = () => {
     if (!inputText.trim()) return
@@ -26,7 +36,9 @@ export const Chatbot: React.FC<ChatbotProps> = ({ onToggleSidebar }) => {
       setMessages(prev => [...prev, { 
         id: Date.now() + 1, 
         sender: 'ai', 
-        text: 'Analyzing your ledger... Based on recent data, I recommend stocking 20% more apples tomorrow to match expected demand!' 
+        text: language === 'EN' 
+          ? 'Analyzing your ledger... Based on recent data, I recommend stocking 20% more apples tomorrow to match expected demand!'
+          : 'आपके लेजर का विश्लेषण किया जा रहा है... हाल के डेटा के आधार पर, मैं अपेक्षित मांग से मेल खाने के लिए कल 20% अधिक सेब स्टॉक करने की सलाह देता हूँ!'
       }])
     }, 1200)
   }
@@ -54,7 +66,9 @@ export const Chatbot: React.FC<ChatbotProps> = ({ onToggleSidebar }) => {
            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A9B80" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
           </svg>
-          <span className="text-[13px] font-bold text-[#1A1A1A] tracking-wide uppercase">Assistant</span>
+          <span className="text-[13px] font-bold text-[#1A1A1A] tracking-wide uppercase">
+            {language === 'EN' ? 'Assistant' : 'सहायक'}
+          </span>
         </div>
       </div>
 
@@ -90,7 +104,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({ onToggleSidebar }) => {
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Ask about your business..."
+            placeholder={language === 'EN' ? "Ask about your business..." : "अपने व्यवसाय के बारे में पूछें..."}
             className="flex-1 bg-transparent border-none outline-none px-4 text-[#1A1A1A] font-medium placeholder:text-[#1A1A1A]/40"
           />
           <button 

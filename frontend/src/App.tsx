@@ -15,6 +15,7 @@ export type ViewState = 'landing' | 'auth' | 'voice' | 'dashboard' | 'history' |
 export function App() {
   const [currentView, setCurrentView] = useState<ViewState>('landing')
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false)
+  const [language, setLanguage] = useState<'EN' | 'HI'>('EN')
   const [userName, setUserName] = useState<string>('')
   const [userOccupation, setUserOccupation] = useState<string>('')
 
@@ -25,6 +26,10 @@ export function App() {
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen)
+  }
+
+  const toggleLanguage = () => {
+    setLanguage(prev => prev === 'EN' ? 'HI' : 'EN')
   }
 
   const handleLogin = (name: string, occupation: string) => {
@@ -48,6 +53,8 @@ export function App() {
         onClose={() => setIsSidebarOpen(false)} 
         onNavigate={handleNavigate} 
         currentView={currentView} 
+        language={language}
+        toggleLanguage={toggleLanguage}
       />
 
       <AnimatePresence mode="wait">
@@ -60,6 +67,7 @@ export function App() {
             <Landing 
               onGetStarted={() => setCurrentView('auth')} 
               onDemo={handleDemo}
+              language={language}
             />
           </motion.div>
         )}
@@ -72,7 +80,7 @@ export function App() {
             exit={{ opacity: 0, x: -20 }}
             className="flex-1 overflow-y-auto"
           >
-            <Auth onLogin={handleLogin} onBack={() => setCurrentView('landing')} />
+            <Auth onLogin={handleLogin} onBack={() => setCurrentView('landing')} language={language} />
           </motion.div>
         )}
 
@@ -84,7 +92,7 @@ export function App() {
             exit={{ opacity: 0 }}
             className="flex-1 overflow-y-auto"
           >
-            <DashboardMain userName={userName} onToggleSidebar={toggleSidebar} />
+            <DashboardMain userName={userName} onToggleSidebar={toggleSidebar} language={language} />
           </motion.div>
         )}
 
@@ -96,7 +104,7 @@ export function App() {
             exit={{ opacity: 0 }}
             className="flex-1 overflow-hidden h-full relative"
           >
-            <AIVoiceScreen userName={userName} onToggleSidebar={toggleSidebar} />
+            <AIVoiceScreen userName={userName} onToggleSidebar={toggleSidebar} language={language} />
           </motion.div>
         )}
 
@@ -108,7 +116,7 @@ export function App() {
             exit={{ opacity: 0 }}
             className="flex-1 overflow-hidden h-full relative"
           >
-            <History onToggleSidebar={toggleSidebar} />
+            <History onToggleSidebar={toggleSidebar} language={language} />
           </motion.div>
         )}
 
@@ -120,7 +128,7 @@ export function App() {
             exit={{ opacity: 0 }}
             className="flex-1 overflow-hidden h-full relative"
           >
-            <Chatbot onToggleSidebar={toggleSidebar} />
+            <Chatbot onToggleSidebar={toggleSidebar} language={language} />
           </motion.div>
         )}
       </AnimatePresence>

@@ -4,11 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 interface AuthProps {
   onLogin: (name: string, occupation: string) => void
   onBack: () => void
+  language: 'EN' | 'HI'
 }
 
 type AuthStep = 'phone' | 'otp' | 'details'
 
-export const Auth: React.FC<AuthProps> = ({ onLogin, onBack }) => {
+export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
   const [step, setStep] = useState<AuthStep>('phone')
   const [phone, setPhone] = useState('')
   const [otp, setOtp] = useState('')
@@ -84,8 +85,12 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack }) => {
                     <line x1="12" y1="18" x2="12.01" y2="18"></line>
                   </svg>
                 </div>
-                <h1 className="text-3xl font-semibold text-[#1A1A1A] tracking-tight mb-2">Welcome Back</h1>
-                <p className="text-[#1A1A1A] opacity-60 text-sm">Enter your phone number to continue</p>
+                <h1 className="text-3xl font-semibold text-[#1A1A1A] tracking-tight mb-2">
+                  {language === 'EN' ? 'Welcome Back' : 'वापसी पर स्वागत है'}
+                </h1>
+                <p className="text-[#1A1A1A] opacity-60 text-sm">
+                  {language === 'EN' ? 'Enter your phone number to continue' : 'जारी रखने के लिए अपना फ़ोन नंबर दर्ज करें'}
+                </p>
               </div>
 
               <form onSubmit={handlePhoneSubmit} className="space-y-6">
@@ -109,7 +114,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack }) => {
                   disabled={phone.length < 10 || isLoading}
                   className="w-full bg-[#161211] text-[#F8F5F2] py-4 rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex justify-center items-center"
                 >
-                  {isLoading ? <div className="w-6 h-6 border-2 border-[#F8F5F2] border-t-transparent rounded-full animate-spin"></div> : 'Send OTP'}
+                  {isLoading ? <div className="w-6 h-6 border-2 border-[#F8F5F2] border-t-transparent rounded-full animate-spin"></div> : (language === 'EN' ? 'Send OTP' : 'OTP भेजें')}
                 </motion.button>
               </form>
             </motion.div>
@@ -130,8 +135,12 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack }) => {
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                   </svg>
                 </div>
-                <h1 className="text-3xl font-semibold text-[#1A1A1A] tracking-tight mb-2">Verify OTP</h1>
-                <p className="text-[#1A1A1A] opacity-60 text-sm">We've sent a 4-digit code to +91 {phone}</p>
+                <h1 className="text-3xl font-semibold text-[#1A1A1A] tracking-tight mb-2">
+                  {language === 'EN' ? 'Verify OTP' : 'OTP सत्यापित करें'}
+                </h1>
+                <p className="text-[#1A1A1A] opacity-60 text-sm">
+                  {language === 'EN' ? `We've sent a 4-digit code to +91 ${phone}` : `हमने +91 ${phone} पर 4-अंकीय कोड भेजा है`}
+                </p>
               </div>
 
               <form onSubmit={handleOtpSubmit} className="space-y-6">
@@ -153,7 +162,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack }) => {
                   disabled={otp.length < 4 || isLoading}
                   className="w-full bg-[#161211] text-[#F8F5F2] py-4 rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex justify-center items-center"
                 >
-                  {isLoading ? <div className="w-6 h-6 border-2 border-[#F8F5F2] border-t-transparent rounded-full animate-spin"></div> : 'Verify & Continue'}
+                  {isLoading ? <div className="w-6 h-6 border-2 border-[#F8F5F2] border-t-transparent rounded-full animate-spin"></div> : (language === 'EN' ? 'Verify & Continue' : 'सत्यापित करें')}
                 </motion.button>
               </form>
             </motion.div>
@@ -174,13 +183,19 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack }) => {
                     <circle cx="12" cy="7" r="4"></circle>
                   </svg>
                 </div>
-                <h1 className="text-3xl font-semibold text-[#1A1A1A] tracking-tight mb-2">Create Profile</h1>
-                <p className="text-[#1A1A1A] opacity-60 text-sm">Tell us a bit about your business</p>
+                <h1 className="text-3xl font-semibold text-[#1A1A1A] tracking-tight mb-2">
+                  {language === 'EN' ? 'Create Profile' : 'प्रोफ़ाइल बनाएं'}
+                </h1>
+                <p className="text-[#1A1A1A] opacity-60 text-sm">
+                  {language === 'EN' ? 'Tell us a bit about your business' : 'हमें अपने व्यवसाय के बारे में थोड़ा बताएं'}
+                </p>
               </div>
 
               <form onSubmit={handleDetailsSubmit} className="space-y-4">
                 <div className="glass-card p-4">
-                  <p className="text-xs font-semibold text-[#1A1A1A] opacity-60 mb-1 uppercase tracking-wider">Your Name</p>
+                  <p className="text-xs font-semibold text-[#1A1A1A] opacity-60 mb-1 uppercase tracking-wider">
+                    {language === 'EN' ? 'Your Name' : 'आपका नाम'}
+                  </p>
                   <input 
                     type="text" 
                     placeholder="e.g. Ramesh"
@@ -192,7 +207,9 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack }) => {
                 </div>
                 
                 <div className="glass-card p-4">
-                  <p className="text-xs font-semibold text-[#1A1A1A] opacity-60 mb-1 uppercase tracking-wider">Occupation</p>
+                  <p className="text-xs font-semibold text-[#1A1A1A] opacity-60 mb-1 uppercase tracking-wider">
+                    {language === 'EN' ? 'Occupation' : 'पेशा'}
+                  </p>
                   <input 
                     type="text" 
                     placeholder="e.g. Tea Seller or Fruit Vendor"
@@ -209,7 +226,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack }) => {
                     disabled={!name.trim() || !occupation.trim()}
                     className="w-full bg-[#161211] text-[#F8F5F2] py-4 rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
                   >
-                    Start Recording
+                    {language === 'EN' ? 'Start Recording' : 'रिकॉर्डिंग शुरू करें'}
                   </motion.button>
                 </div>
               </form>

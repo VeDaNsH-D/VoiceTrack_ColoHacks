@@ -5,9 +5,10 @@ import { AnalyticsModal } from './AnalyticsModal'
 interface DashboardMainProps {
   userName: string
   onToggleSidebar: () => void
+  language: 'EN' | 'HI'
 }
 
-export const DashboardMain: React.FC<DashboardMainProps> = ({ userName, onToggleSidebar }) => {
+export const DashboardMain: React.FC<DashboardMainProps> = ({ userName, onToggleSidebar, language }) => {
   const [displayBalance, setDisplayBalance] = useState(0)
   const [showAnalytics, setShowAnalytics] = useState(false)
   const finalBalance = 14857.05
@@ -71,43 +72,41 @@ export const DashboardMain: React.FC<DashboardMainProps> = ({ userName, onToggle
 
         {/* Greeting & Subtitle */}
         <motion.div variants={itemVariants} className="mb-8">
-          <p className="text-sm font-medium text-[#1A1A1A] mb-1">Hello, {userName || 'Alex'}</p>
-          <h1 className="text-4xl font-semibold text-[#1A1A1A] leading-[1.1] tracking-tight max-w-[280px]">
-            AI manages your ledger so you can focus on sales.
+          <h1 className="text-4xl font-semibold tracking-tight text-[#1A1A1A] mb-2 leading-tight">
+            {language === 'EN' ? 'Hello,' : 'नमस्ते,'} <br /><span className="text-[#8A9B80]">{userName || 'User'}</span>
           </h1>
+          <p className="text-[#1A1A1A]/60 font-medium">
+            {language === 'EN' ? 'AI manages your ledger so you can focus on sales.' : 'AI आपका लेजर प्रबंधित करता है ताकि आप बिक्री पर ध्यान दे सकें।'}
+          </p>
         </motion.div>
 
         {/* Balance Card Container */}
-        <motion.div variants={itemVariants} className="glass-card mb-4 relative z-20">
-          <div className="mb-6">
-            <p className="text-[13px] font-medium text-[#1A1A1A] opacity-80 mb-1">Your ledger and monthly progress</p>
-            <p className="text-[13px] font-bold text-[#1A1A1A]">
-              + ₹1,240 <span className="mx-1">•</span> <span className="opacity-60 font-medium">+2.9% this month</span>
-            </p>
-          </div>
-
-          <div className="mb-6">
-            <div className="text-[54px] font-semibold text-[#1A1A1A] tracking-tighter flex items-end">
-              <span className="text-3xl pb-2 mr-1">₹</span>
-              {displayBalance.toLocaleString('en-IN', {
-                maximumFractionDigits: 0,
-              })}
-              <span className="text-[#8B8B8B] text-4xl pb-[6px]">.05</span>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <div className="flex-[2] bg-[#8a9b80] bg-opacity-80 rounded-[20px] px-5 py-4 flex items-center shadow-sm">
-              <span className="text-[15px] font-medium text-[#1A1A1A]">All good this month</span>
-            </div>
+        <motion.div variants={itemVariants} className="mb-4">
+          <h2 className="text-lg font-bold text-[#1A1A1A] mb-4">
+            {language === 'EN' ? 'Your ledger and monthly progress' : 'आपका लेजर और मासिक प्रगति'}
+          </h2>
+          <div className="w-full glass-card rounded-3xl p-6 relative overflow-hidden group shadow-lg">
+            {/* Background pattern */}
+            <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#1A1A1A_1px,transparent_1px)] [background-size:16px_16px]"></div>
             
-            <button 
-              onClick={() => setShowAnalytics(true)}
-              className="flex-1 bg-[#F8F5F2] bg-opacity-50 rounded-[20px] px-3 py-4 flex flex-col items-center justify-center hover:bg-opacity-70 transition-all border border-white/20 shadow-sm"
-            >
-              <div className="text-sm font-bold text-[#1A1A1A]">+12%</div>
-              <div className="text-[11px] font-medium text-[#1A1A1A] opacity-60">sales</div>
-            </button>
+            <div className="relative z-10 flex flex-col items-center">
+              <span className="text-[13px] font-bold uppercase tracking-wider text-[#1A1A1A]/50 mb-2">
+                {language === 'EN' ? 'this month' : 'इस महीने'}
+              </span>
+              <div className="text-[54px] font-semibold text-[#1A1A1A] tracking-tighter flex items-end">
+                <span className="text-3xl pb-2 mr-1">₹</span>
+                {displayBalance.toLocaleString('en-IN', {
+                  maximumFractionDigits: 0,
+                })}
+                <span className="text-[#8B8B8B] text-4xl pb-[6px]">.05</span>
+              </div>
+              <div className="inline-flex items-center gap-1.5 bg-[#8A9B80]/10 px-3 py-1.5 rounded-full mt-4">
+                <div className="w-2 h-2 rounded-full bg-[#8A9B80]"></div>
+                <span className="text-sm font-semibold text-[#8A9B80]">
+                  {language === 'EN' ? 'All good this month' : 'इस महीने सब ठीक है'}
+                </span>
+              </div>
+            </div>
           </div>
         </motion.div>
 

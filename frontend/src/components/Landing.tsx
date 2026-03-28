@@ -4,9 +4,10 @@ import { motion } from 'framer-motion'
 interface LandingProps {
   onGetStarted: () => void
   onDemo: () => void
+  language: 'EN' | 'HI'
 }
 
-export const Landing: React.FC<LandingProps> = ({ onGetStarted, onDemo }) => {
+export const Landing: React.FC<LandingProps> = ({ onGetStarted, onDemo, language }) => {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -43,11 +44,15 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onDemo }) => {
         initial={{ y: 40, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.3, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full bg-[#161211] text-[#F8F5F2] rounded-t-[40px] p-8 pb-16 pt-12 flex flex-col items-start"
+        className="w-full bg-[#161211] text-[#F8F5F2] rounded-t-[40px] p-8 pb-16 pt-12 flex flex-col items-start relative z-30 shadow-[0_-20px_50px_rgba(0,0,0,0.2)]"
       >
         <p className="text-sm font-semibold mb-3 opacity-90 tracking-wide">VoiceTrace</p>
         <h1 className="text-4xl sm:text-5xl font-semibold leading-[1.1] tracking-tight mb-8">
-          Grow your business<br />with smart AI.
+          {language === 'EN' ? (
+            <>Grow your business<br />with smart AI.</>
+          ) : (
+            <>स्मार्ट AI के साथ<br />अपना व्यापार बढ़ाएं।</>
+          )}
         </h1>
         
         <div className="flex flex-col w-full gap-4 mt-2">
@@ -59,7 +64,7 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onDemo }) => {
             }}
             className="w-full bg-[#F8F5F2] text-[#161211] py-4 rounded-2xl font-bold tracking-wide shadow-lg"
           >
-            Get Started
+            {language === 'EN' ? 'Get Started' : 'शुरू करें'}
           </motion.button>
           
           {/* APK Download Button */}
@@ -75,7 +80,7 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onDemo }) => {
               <polyline points="7 10 12 15 17 10"></polyline>
               <line x1="12" y1="15" x2="12" y2="3"></line>
             </svg>
-            Download APK
+            {language === 'EN' ? 'Download APK' : 'APK डाउनलोड करें'}
           </motion.a>
 
           <motion.button
@@ -86,7 +91,7 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onDemo }) => {
             }}
             className="w-full bg-transparent border border-white/20 text-[#F8F5F2] py-4 rounded-2xl font-semibold tracking-wide"
           >
-            Try Demo
+            {language === 'EN' ? 'Try Demo' : 'डेमो आजमाएं'}
           </motion.button>
         </div>
       </motion.div>

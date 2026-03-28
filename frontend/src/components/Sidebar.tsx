@@ -7,9 +7,11 @@ interface SidebarProps {
   onClose: () => void
   onNavigate: (view: ViewState) => void
   currentView: ViewState
+  language: 'EN' | 'HI'
+  toggleLanguage: () => void
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate, currentView }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate, currentView, language, toggleLanguage }) => {
   return (
     <AnimatePresence>
       {isOpen && (
@@ -52,12 +54,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate, c
                   </svg>
                   <span className="text-xl font-bold text-[#F8F5F2] tracking-wide">VoiceTrace</span>
                 </div>
-                <p className="text-sm text-[#F8F5F2]/50 font-medium ml-11">Business Intelligence</p>
+                <p className="text-sm text-[#F8F5F2]/50 font-medium ml-11">
+                  {language === 'EN' ? 'Business Intelligence' : 'बिजनेस इंटेलिजेंस'}
+                </p>
               </div>
 
               <div className="flex flex-col gap-2 flex-1">
                 <MenuButton 
-                  label="Voice Ledger" 
+                  label={language === 'EN' ? "Voice Ledger" : "वॉयस लेजर"} 
                   icon={
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                   }
@@ -65,7 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate, c
                   onClick={() => { onNavigate('voice'); onClose(); }} 
                 />
                 <MenuButton 
-                  label="Context Chatbot" 
+                  label={language === 'EN' ? "Context Chatbot" : "कॉन्टेक्स्ट चैटबॉट"} 
                   icon={
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                   }
@@ -73,7 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate, c
                   onClick={() => { onNavigate('chat'); onClose(); }} 
                 />
                 <MenuButton 
-                  label="Performance Dashboard" 
+                  label={language === 'EN' ? "Performance Dashboard" : "प्रदर्शन डैशबोर्ड"} 
                   icon={
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
                   }
@@ -81,7 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate, c
                   onClick={() => { onNavigate('dashboard'); onClose(); }} 
                 />
                 <MenuButton 
-                  label="Ledger History" 
+                  label={language === 'EN' ? "Ledger History" : "लेजर इतिहास"} 
                   icon={
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                   }
@@ -90,13 +94,35 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate, c
                 />
               </div>
 
-              <div className="mt-auto pt-6 border-t border-[#F8F5F2]/10">
+              <div className="mt-auto pt-6 border-t border-[#F8F5F2]/10 flex flex-col gap-3">
+                
+                {/* Embedded Language Toggle */}
+                <button 
+                  onClick={toggleLanguage}
+                  className="w-full flex items-center justify-between py-3 px-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-colors shadow-sm border border-white/5"
+                >
+                  <div className="flex items-center gap-3">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F8F5F2" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-80">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="2" y1="12" x2="22" y2="12"></line>
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                    </svg>
+                    <span className="text-[#F8F5F2] font-semibold text-[15px] tracking-wide">
+                      {language === 'EN' ? 'Language / भाषा' : 'भाषा / Language'}
+                    </span>
+                  </div>
+                  <div className="flex bg-[#161211] p-1 rounded-full items-center">
+                    <span className={`px-2 py-0.5 text-xs font-bold rounded-full transition-all ${language === 'EN' ? 'bg-[#F8F5F2] text-[#161211]' : 'text-[#F8F5F2]/50'}`}>EN</span>
+                    <span className={`px-2 py-0.5 text-xs font-bold rounded-full transition-all ${language === 'HI' ? 'bg-[#F8F5F2] text-[#161211]' : 'text-[#F8F5F2]/50'}`}>HI</span>
+                  </div>
+                </button>
+
                 <button 
                   onClick={() => { onNavigate('landing'); onClose(); }}
-                  className="w-full flex items-center gap-4 py-3 px-4 text-[#F85F54] hover:bg-[#F85F54]/10 rounded-2xl transition-colors font-semibold"
+                  className="w-full flex items-center gap-3 py-3 px-4 text-[#F85F54] hover:bg-[#F85F54]/10 rounded-2xl transition-colors font-semibold"
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                  Sign Out
+                  {language === 'EN' ? 'Sign Out' : 'साइन आउट'}
                 </button>
               </div>
             </div>
