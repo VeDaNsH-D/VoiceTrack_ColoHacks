@@ -8,11 +8,12 @@ import { AIInsightsPage } from './components/AIInsightsPage'
 import { AIVoiceScreen } from './components/AIVoiceScreen'
 import { Chatbot } from './components/Chatbot'
 import { Sidebar } from './components/Sidebar'
+import { LocalDemandMapDashboard } from './components/LocalDemandMapDashboard.jsx'
 import { setAuthToken } from './services/api'
 import './App.css'
 import './index.css'
 
-export type ViewState = 'landing' | 'auth' | 'voice' | 'dashboard' | 'insights' | 'history' | 'chat'
+export type ViewState = 'landing' | 'auth' | 'voice' | 'dashboard' | 'insights' | 'localMap' | 'history' | 'chat'
 
 export interface AuthSession {
   userId: string
@@ -165,6 +166,18 @@ export function App() {
               onToggleSidebar={toggleSidebar}
               language={language}
             />
+          </motion.div>
+        )}
+
+        {currentView === 'localMap' && (
+          <motion.div
+            key="localMap"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex-1 overflow-hidden"
+          >
+            <LocalDemandMapDashboard />
           </motion.div>
         )}
 

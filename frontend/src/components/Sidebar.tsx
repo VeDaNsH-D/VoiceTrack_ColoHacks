@@ -24,7 +24,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate, c
             onClick={onClose}
             className="fixed inset-0 bg-black/60 z-[100] backdrop-blur-sm"
           />
-          
+
           {/* Drawer */}
           <motion.div
             initial={{ x: '-100%' }}
@@ -34,8 +34,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate, c
             className="fixed top-0 left-0 bottom-0 w-[80%] max-w-[320px] bg-[#161211] z-[101] shadow-2xl flex flex-col rounded-r-[40px] overflow-hidden border-r border-[#F8F5F2]/10"
           >
             <div className="p-8 pt-16 flex flex-col h-full relative">
-              
-              <button 
+
+              <button
                 onClick={onClose}
                 className="absolute top-8 right-8 text-[#F8F5F2]/60 hover:text-[#F8F5F2] transition-colors"
               >
@@ -60,29 +60,29 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate, c
               </div>
 
               <div className="flex flex-col gap-2 flex-1">
-                <MenuButton 
-                  label={language === 'EN' ? "Voice Ledger" : "वॉयस लेजर"} 
+                <MenuButton
+                  label={language === 'EN' ? "Voice Ledger" : "वॉयस लेजर"}
                   icon={
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
                   }
-                  isActive={currentView === 'voice'} 
-                  onClick={() => { onNavigate('voice'); onClose(); }} 
+                  isActive={currentView === 'voice'}
+                  onClick={() => { onNavigate('voice'); onClose(); }}
                 />
-                <MenuButton 
-                  label={language === 'EN' ? "Context Chatbot" : "कॉन्टेक्स्ट चैटबॉट"} 
+                <MenuButton
+                  label={language === 'EN' ? "Context Chatbot" : "कॉन्टेक्स्ट चैटबॉट"}
                   icon={
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                   }
-                  isActive={currentView === 'chat'} 
-                  onClick={() => { onNavigate('chat'); onClose(); }} 
+                  isActive={currentView === 'chat'}
+                  onClick={() => { onNavigate('chat'); onClose(); }}
                 />
-                <MenuButton 
-                  label={language === 'EN' ? "Performance Dashboard" : "प्रदर्शन डैशबोर्ड"} 
+                <MenuButton
+                  label={language === 'EN' ? "Performance Dashboard" : "प्रदर्शन डैशबोर्ड"}
                   icon={
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
                   }
-                  isActive={currentView === 'dashboard'} 
-                  onClick={() => { onNavigate('dashboard'); onClose(); }} 
+                  isActive={currentView === 'dashboard'}
+                  onClick={() => { onNavigate('dashboard'); onClose(); }}
                 />
                 <MenuButton
                   label={language === 'EN' ? 'AI Insights' : 'AI इनसाइट्स'}
@@ -92,20 +92,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate, c
                   isActive={currentView === 'insights'}
                   onClick={() => { onNavigate('insights'); onClose(); }}
                 />
-                <MenuButton 
-                  label={language === 'EN' ? "Ledger History" : "लेजर इतिहास"} 
+                <MenuButton
+                  label={language === 'EN' ? 'Demand Intelligence Map' : 'डिमांड इंटेलिजेंस मैप'}
+                  icon={
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"></path><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line></svg>
+                  }
+                  isActive={currentView === 'localMap'}
+                  onClick={() => { onNavigate('localMap'); onClose(); }}
+                />
+                <MenuButton
+                  label={language === 'EN' ? "Ledger History" : "लेजर इतिहास"}
                   icon={
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                   }
-                  isActive={currentView === 'history'} 
-                  onClick={() => { onNavigate('history'); onClose(); }} 
+                  isActive={currentView === 'history'}
+                  onClick={() => { onNavigate('history'); onClose(); }}
                 />
               </div>
 
               <div className="mt-auto pt-6 border-t border-[#F8F5F2]/10 flex flex-col gap-3">
-                
+
                 {/* Embedded Language Toggle */}
-                <button 
+                <button
                   onClick={toggleLanguage}
                   className="w-full flex items-center justify-between py-3 px-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-colors shadow-sm border border-white/5"
                 >
@@ -125,7 +133,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigate, c
                   </div>
                 </button>
 
-                <button 
+                <button
                   onClick={() => { onNavigate('landing'); onClose(); }}
                   className="w-full flex items-center gap-3 py-3 px-4 text-[#F85F54] hover:bg-[#F85F54]/10 rounded-2xl transition-colors font-semibold"
                 >
@@ -145,11 +153,10 @@ const MenuButton = ({ label, icon, isActive, onClick }: { label: string, icon: R
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-4 py-4 px-5 rounded-2xl font-bold transition-all ${
-        isActive 
-          ? 'bg-[#F8F5F2] text-[#161211] shadow-lg scale-100' 
+      className={`w-full flex items-center gap-4 py-4 px-5 rounded-2xl font-bold transition-all ${isActive
+          ? 'bg-[#F8F5F2] text-[#161211] shadow-lg scale-100'
           : 'bg-transparent text-[#F8F5F2]/60 hover:bg-white/5 hover:text-[#F8F5F2] scale-95 origin-left'
-      }`}
+        }`}
     >
       <div className={`${isActive ? 'opacity-100 text-[#8A9B80]' : 'opacity-80'}`}>
         {icon}

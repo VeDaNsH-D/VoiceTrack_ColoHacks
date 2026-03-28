@@ -5,6 +5,7 @@ const saleSchema = new mongoose.Schema(
     item: { type: String, required: true, trim: true },
     qty: { type: Number, required: true, min: 1 },
     price: { type: Number, required: true, min: 0.01 },
+    category: { type: String, default: "general" } // ✅ ADDED
   },
   { _id: false }
 );
@@ -13,6 +14,7 @@ const expenseSchema = new mongoose.Schema(
   {
     item: { type: String, required: true, trim: true },
     amount: { type: Number, required: true, min: 0.01 },
+    category: { type: String, default: "general" } // ✅ OPTIONAL ADD
   },
   { _id: false }
 );
@@ -37,12 +39,16 @@ const transactionSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+
     rawText: { type: String, required: true, trim: true },
     normalizedText: { type: String, required: true, trim: true },
     summary: { type: String, default: "", trim: true },
     embedding: { type: [Number], default: void 0 },
+
+    // ✅ CORE TRANSACTION DATA
     sales: { type: [saleSchema], default: [] },
     expenses: { type: [expenseSchema], default: [] },
+
     totals: {
       salesAmount: {
         type: Number,
@@ -62,6 +68,14 @@ const transactionSchema = new mongoose.Schema(
         default: 0,
       },
     },
+
+    // ✅ LOCATION (CRITICAL FOR MAP)
+    location: {
+      lat: { type: Number, required: true },
+      lng: { type: Number, required: true },
+    },
+
+    // ✅ AI METADATA
     meta: {
       confidence: { type: Number, required: true, min: 0, max: 1 },
       source: {
@@ -76,15 +90,21 @@ const transactionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// ✅ INDEXES (UNCHANGED + OPTIONAL LOCATION INDEX)
 transactionSchema.index({ businessId: 1, createdAt: -1 });
 transactionSchema.index({ userId: 1, createdAt: -1 });
 transactionSchema.index({ "meta.source": 1, createdAt: -1 });
 
+// (Optional for faster geo queries later)
+transactionSchema.index({ "location.lat": 1, "location.lng": 1 });
+
+// ✅ AUTO TOTAL CALCULATION
 transactionSchema.pre("validate", function populateTotals() {
   const salesAmount = (this.sales || []).reduce(
     (sum, sale) => sum + sale.qty * sale.price,
     0
   );
+
   const expenseAmount = (this.expenses || []).reduce(
     (sum, expense) => sum + expense.amount,
     0
