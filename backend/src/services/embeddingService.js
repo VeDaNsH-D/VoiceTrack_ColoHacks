@@ -38,7 +38,7 @@ async function generateEmbedding(text) {
     const response = await axios.post(
       env.huggingFaceEmbeddingUrl,
       {
-        inputs: cleanedText,
+        inputs: [cleanedText],
         options: {
           wait_for_model: true,
           use_cache: true,
