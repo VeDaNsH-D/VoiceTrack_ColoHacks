@@ -16,17 +16,23 @@ def root():
         "service": "VoiceTrack STT API",
         "status": "running",
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
+        "endpoints": {
+            "stt": "POST /stt",
+            "sttCompat": "POST /process-text/stt",
+            "process": "POST /process",
+            "processCompat": "POST /process-text",
+        },
     }
 
 @router.get("/health")
 def health():
     return {"status": "ok"}
 
-@router.post("/stt")
-async def stt(file: UploadFile = File(...)):
-    logger.info("/stt request received")
-    if not file.content_type.startswith("audio/"):
+async def handle_stt_upload(file: UploadFile) -> JSONResponse:
+    logger.info("STT request received for file: %s", file.filename)
+    content_type = file.content_type or ""
+    if not content_type.startswith("audio/"):
         logger.error(f"Invalid file type: {file.content_type}")
         raise HTTPException(status_code=400, detail="Invalid audio file format.")
     os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
@@ -53,3 +59,9 @@ async def stt(file: UploadFile = File(...)):
             os.remove(temp_path)
         except Exception:
             pass
+
+
+@router.post("/stt")
+@router.post("/process-text/stt")
+async def stt(file: UploadFile = File(...)):
+    return await handle_stt_upload(file)
