@@ -1,7 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { askAssistant } from '../services/api'
+import {
+  askAssistant,
+  synthesizeAssistantAudio,
+  transcribeAudioForAssistant,
+} from '../services/api'
 import { FiPlus, FiMic, FiFeather, FiTrendingUp, FiCheckCircle } from 'react-icons/fi'
+import { blobToWav, getAudioPermission, startRecording, stopRecording } from '../utils/audio'
 
 interface ChatbotProps {
   userId: string
@@ -13,21 +18,75 @@ type ChatMessage = {
   id: number
   sender: 'ai' | 'user'
   text: string
+  audioUrl?: string | null
 }
 
 export const Chatbot: React.FC<ChatbotProps> = ({ userId, userName, language }) => {
+  const MAX_RECORDING_MS = 180000
   const [inputText, setInputText] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [isAudioProcessing, setIsAudioProcessing] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const audioReplyRef = useRef<HTMLAudioElement | null>(null)
+  const autoStopTimerRef = useRef<number | null>(null)
+  const showProcessingIndicator = isSending || isAudioProcessing
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  useEffect(() => {
+    return () => {
+      if (autoStopTimerRef.current) window.clearTimeout(autoStopTimerRef.current)
+      streamRef.current?.getTracks().forEach((track) => track.stop())
+      audioReplyRef.current?.pause()
+    }
+  }, [])
+
+  const clearAutoStopTimer = () => {
+    if (autoStopTimerRef.current) {
+      window.clearTimeout(autoStopTimerRef.current)
+      autoStopTimerRef.current = null
+    }
+  }
+
+  const playReplyAudio = (audioUrl: string) => {
+    if (!audioUrl) {
+      return
+    }
+
+    audioReplyRef.current?.pause()
+    const audio = new Audio(audioUrl)
+    audioReplyRef.current = audio
+    void audio.play().catch(() => {
+      // Autoplay may fail due to browser policies.
+    })
+  }
+
+  const fetchAssistantReply = async (message: string): Promise<{ text: string; audioUrl: string | null }> => {
+    const response = await askAssistant({ userId: userId || 'guest-user', message })
+    const reply = response.clarificationQuestion || response.reply
+
+    let audioUrl: string | null = null
+    try {
+      audioUrl = await synthesizeAssistantAudio({
+        text: reply,
+        language: language === 'EN' ? 'en' : 'hi',
+      })
+    } catch {
+      audioUrl = null
+    }
+
+    return { text: reply, audioUrl }
+  }
+
   const handleSend = async (forcedText?: string) => {
     const textToSend = forcedText || inputText
-    if (!textToSend.trim() || isSending) return
+    if (!textToSend.trim() || isSending || isRecording || isAudioProcessing) return
 
     const userMsg: ChatMessage = { id: Date.now(), sender: 'user', text: textToSend }
     setMessages(prev => [...prev, userMsg])
@@ -35,9 +94,11 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, userName, language }) 
     setIsSending(true)
 
     try {
-      const response = await askAssistant({ userId: userId || 'guest-user', message: textToSend })
-      const reply = response.clarificationQuestion || response.reply
-      setMessages(prev => [...prev, { id: Date.now() + 1, sender: 'ai', text: reply }])
+      const assistant = await fetchAssistantReply(textToSend)
+      setMessages(prev => [...prev, { id: Date.now() + 1, sender: 'ai', text: assistant.text, audioUrl: assistant.audioUrl }])
+      if (assistant.audioUrl) {
+        playReplyAudio(assistant.audioUrl)
+      }
     } catch {
       setMessages(prev => [...prev, {
         id: Date.now() + 1, sender: 'ai',
@@ -45,6 +106,79 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, userName, language }) 
       }])
     } finally {
       setIsSending(false)
+    }
+  }
+
+  const startVoiceInput = async () => {
+    if (isSending || isRecording || isAudioProcessing) {
+      return
+    }
+
+    try {
+      if (!streamRef.current) {
+        streamRef.current = await getAudioPermission()
+      }
+
+      const recorder = startRecording(streamRef.current)
+      mediaRecorderRef.current = recorder
+      recorder.onstart = () => setIsRecording(true)
+      recorder.start()
+      autoStopTimerRef.current = window.setTimeout(() => {
+        void stopVoiceInput(true)
+      }, MAX_RECORDING_MS)
+    } catch {
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        sender: 'ai',
+        text: language === 'EN' ? 'Please allow microphone access to send audio.' : 'ऑडियो भेजने के लिए कृपया माइक्रोफोन एक्सेस दें।',
+      }])
+    }
+  }
+
+  const stopVoiceInput = async (fromAutoStop = false) => {
+    if (!mediaRecorderRef.current) {
+      return
+    }
+
+    clearAutoStopTimer()
+    const recorder = mediaRecorderRef.current
+    setIsRecording(false)
+    setIsAudioProcessing(true)
+
+    try {
+      const blob = await stopRecording(recorder)
+      mediaRecorderRef.current = null
+
+      const wavBlob = await blobToWav(blob)
+      const stt = await transcribeAudioForAssistant({ audioBlob: wavBlob })
+      const transcript = String(stt.transcript || '').trim()
+
+      if (!transcript) {
+        setMessages(prev => [...prev, {
+          id: Date.now() + 1,
+          sender: 'ai',
+          text: fromAutoStop
+            ? (language === 'EN' ? 'Reached 3 minute max recording limit. I processed what I captured.' : '3 मिनट की अधिकतम रिकॉर्डिंग सीमा पूरी हुई। मैंने रिकॉर्ड किया हुआ ऑडियो प्रोसेस कर दिया।')
+            : (language === 'EN' ? 'I could not hear anything clearly. Please try once more.' : 'मुझे ऑडियो साफ़ सुनाई नहीं दिया। कृपया एक बार फिर बोलें।'),
+        }])
+        return
+      }
+
+      setMessages(prev => [...prev, { id: Date.now(), sender: 'user', text: transcript }])
+
+      const assistant = await fetchAssistantReply(transcript)
+      setMessages(prev => [...prev, { id: Date.now() + 1, sender: 'ai', text: assistant.text, audioUrl: assistant.audioUrl }])
+      if (assistant.audioUrl) {
+        playReplyAudio(assistant.audioUrl)
+      }
+    } catch {
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        sender: 'ai',
+        text: language === 'EN' ? 'I could not process your audio clearly. Please try again.' : 'मैं आपका ऑडियो साफ़ प्रोसेस नहीं कर सका। कृपया फिर से कोशिश करें।',
+      }])
+    } finally {
+      setIsAudioProcessing(false)
     }
   }
 
@@ -163,6 +297,9 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, userName, language }) 
                       : 'bg-white text-[#1A1A1A] rounded-[24px] rounded-tl-[8px] shadow-[0_4px_16px_rgba(0,0,0,0.04)] border border-[#1A1A1A]/5'
                   }`}>
                     {msg.text}
+                    {msg.sender === 'ai' && msg.audioUrl && (
+                      <audio src={msg.audioUrl} controls className="w-full mt-3" />
+                    )}
                   </div>
 
                   {msg.sender === 'user' && (
@@ -174,7 +311,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, userName, language }) 
               ))}
 
               {/* AI typing indicator */}
-              {isSending && (
+              {showProcessingIndicator && (
                 <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-4">
                   <div className="w-9 h-9 rounded-full bg-[#1A1A1A] text-white flex-shrink-0 flex items-center justify-center mt-1">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -220,14 +357,19 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, userName, language }) 
                 onChange={e => setInputText(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && void handleSend()}
                 placeholder={language === 'EN' ? 'Example : "Explain quantum computing in simple terms"' : 'उदाहरण : "सरल शब्दों में लाभ मार्जिन समझाएं"'}
+                disabled={isSending || isRecording || isAudioProcessing}
                 className="flex-1 bg-transparent border-none outline-none px-3 text-[16px] font-medium text-[#1A1A1A] placeholder:text-[#1A1A1A]/40"
               />
-              <button className="w-12 h-12 flex items-center justify-center text-[#1A1A1A]/40 hover:text-[#1A1A1A] transition-colors flex-shrink-0">
+              <button
+                onClick={isRecording ? () => void stopVoiceInput() : () => void startVoiceInput()}
+                disabled={isSending || isAudioProcessing}
+                className={`w-12 h-12 flex items-center justify-center transition-colors flex-shrink-0 ${isRecording ? 'text-[#F85F54]' : 'text-[#1A1A1A]/40 hover:text-[#1A1A1A]'} disabled:opacity-40`}
+              >
                 <FiMic size={20} />
               </button>
               <button
                 onClick={() => void handleSend()}
-                disabled={isSending || !inputText.trim()}
+                disabled={isSending || isRecording || isAudioProcessing || !inputText.trim()}
                 className="w-12 h-12 bg-[#1A1A1A] text-white rounded-full flex items-center justify-center flex-shrink-0 shadow-md disabled:opacity-40 transition-transform active:scale-95 disabled:active:scale-100 mr-1"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

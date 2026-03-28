@@ -38,15 +38,27 @@ Python FastAPI service for speech-to-text, transcript structuring, conversation 
 
 ## Setup
 
-Option A: quick start script (Linux/macOS shell)
+Option A: quick start scripts (recommended)
 
-- app/start.sh
+- Linux/macOS: app/start.sh
+- Windows PowerShell: app/start.ps1
 
 What it does:
 
+- installs ffmpeg automatically if missing (required for voice preprocessing)
 - creates app/venv if missing
 - installs requirements
 - starts uvicorn app.main:app on PORT (default 8001)
+
+Run:
+
+Linux/macOS:
+
+./app/start.sh
+
+Windows PowerShell:
+
+powershell -ExecutionPolicy Bypass -File app/start.ps1
 
 Option B: manual setup
 
@@ -199,5 +211,5 @@ Errors are standardized via HTTP exception handlers with structured error payloa
 
 - This service keeps pending conversation state in process memory. Restart clears state.
 - Whisper model loads at import time for lower runtime latency but higher startup memory/time.
-- ffmpeg must be available on system PATH for preprocessing.
+- ffmpeg is auto-installed by quick start scripts when possible; otherwise install manually and ensure it is on PATH.
 - For production, prefer pinned ALLOWED_ORIGINS and process manager supervision.

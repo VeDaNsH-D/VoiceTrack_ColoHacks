@@ -56,6 +56,7 @@ function buildResultSummary(result: VoiceNarrationResult, language: 'EN' | 'HI')
 }
 
 export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, onToggleSidebar, language }) => {
+  const MAX_RECORDING_MS = 180000
   const [stage, setStage] = React.useState<VoiceStage>('idle')
   const [isListening, setIsListening] = React.useState(false)
   const [error, setError] = React.useState('')
@@ -76,14 +77,23 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
   const analyserRef = React.useRef<AnalyserNode | null>(null)
   const audioContextRef = React.useRef<AudioContext | null>(null)
   const audioRef = React.useRef<HTMLAudioElement | null>(null)
+  const autoStopTimerRef = React.useRef<number | null>(null)
 
   React.useEffect(() => {
     return () => {
+      if (autoStopTimerRef.current) window.clearTimeout(autoStopTimerRef.current)
       streamRef.current?.getTracks().forEach(t => t.stop())
       recognitionRef.current?.stop()
       if (animationRef.current) cancelAnimationFrame(animationRef.current)
       if (audioContextRef.current) void audioContextRef.current.close()
       audioRef.current?.pause()
+    }
+  }, [])
+
+  const clearAutoStopTimer = React.useCallback(() => {
+    if (autoStopTimerRef.current) {
+      window.clearTimeout(autoStopTimerRef.current)
+      autoStopTimerRef.current = null
     }
   }, [])
 
@@ -186,6 +196,9 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
       mediaRecorderRef.current = recorder
       recorder.onstart = () => { setIsListening(true); setStage('listening') }
       recorder.start()
+      autoStopTimerRef.current = window.setTimeout(() => {
+        void stopListening()
+      }, MAX_RECORDING_MS)
       beginLiveRecognition()
       startWaveform(streamRef.current)
     } catch {
@@ -196,6 +209,7 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
   const stopListening = React.useCallback(async () => {
     if (!mediaRecorderRef.current) return
     try {
+      clearAutoStopTimer()
       stopLiveRecognition()
       stopWaveform()
       setIsListening(false)
@@ -207,7 +221,7 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
       setStage('idle')
       setIsListening(false)
     }
-  }, [language, stopLiveRecognition, stopWaveform, submitVoice])
+  }, [clearAutoStopTimer, language, stopLiveRecognition, stopWaveform, submitVoice])
 
   const handleConfirmAll = async () => { if (result) await submitVoice(undefined, result.rawTranscript, true) }
   const handleEditSubmit = async () => { if (!editableTranscript.trim()) return; setIsEditMode(false); await submitVoice(undefined, editableTranscript.trim(), false) }

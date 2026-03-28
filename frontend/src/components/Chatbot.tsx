@@ -34,6 +34,7 @@ function getWelcomeMessage(language: 'EN' | 'HI'): string {
 }
 
 export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, language }) => {
+  const MAX_RECORDING_MS = 180000
   const [inputText, setInputText] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: 1, sender: 'ai', text: getWelcomeMessage(language) },
@@ -45,6 +46,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
   const mediaRecorderRef = React.useRef<MediaRecorder | null>(null)
   const streamRef = React.useRef<MediaStream | null>(null)
   const audioReplyRef = React.useRef<HTMLAudioElement | null>(null)
+  const autoStopTimerRef = React.useRef<number | null>(null)
   const showProcessingIndicator = isSending || isAudioProcessing
 
   // Update messages completely if language changes (mock hot reload)
@@ -56,8 +58,16 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
 
   React.useEffect(() => {
     return () => {
+      if (autoStopTimerRef.current) window.clearTimeout(autoStopTimerRef.current)
       streamRef.current?.getTracks().forEach((track) => track.stop())
       audioReplyRef.current?.pause()
+    }
+  }, [])
+
+  const clearAutoStopTimer = React.useCallback(() => {
+    if (autoStopTimerRef.current) {
+      window.clearTimeout(autoStopTimerRef.current)
+      autoStopTimerRef.current = null
     }
   }, [])
 
@@ -296,6 +306,9 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
       mediaRecorderRef.current = recorder
       recorder.onstart = () => setIsRecording(true)
       recorder.start()
+      autoStopTimerRef.current = window.setTimeout(() => {
+        void stopVoiceInput(true)
+      }, MAX_RECORDING_MS)
     } catch {
       setMessages(prev => [
         ...prev,
@@ -311,11 +324,12 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
     }
   }
 
-  const stopVoiceInput = async () => {
+  const stopVoiceInput = async (fromAutoStop = false) => {
     if (!mediaRecorderRef.current) {
       return
     }
 
+    clearAutoStopTimer()
     const recorder = mediaRecorderRef.current
     setIsRecording(false)
     setIsAudioProcessing(true)
@@ -426,9 +440,13 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
           id: Date.now() + 1,
           sender: 'ai',
           text:
-            language === 'EN'
-              ? 'I could not process your audio clearly. Please try again.'
-              : 'मैं आपका ऑडियो साफ़ प्रोसेस नहीं कर सका। कृपया फिर से कोशिश करें।',
+            fromAutoStop
+              ? (language === 'EN'
+                ? 'Reached 3 minute max recording limit. I processed what I captured.'
+                : '3 मिनट की अधिकतम रिकॉर्डिंग सीमा पूरी हुई। मैंने रिकॉर्ड किया हुआ ऑडियो प्रोसेस कर दिया।')
+              : (language === 'EN'
+                ? 'I could not process your audio clearly. Please try again.'
+                : 'मैं आपका ऑडियो साफ़ प्रोसेस नहीं कर सका। कृपया फिर से कोशिश करें।'),
         },
       ])
     } finally {

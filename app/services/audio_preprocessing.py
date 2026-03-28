@@ -1,4 +1,5 @@
 import os
+import shutil
 import numpy as np
 import soundfile as sf
 import noisereduce as nr
@@ -9,13 +10,41 @@ from scipy.io import wavfile
 from app.utils.config import TEMP_AUDIO_DIR, CLEANED_AUDIO_FILENAME
 from app.utils.logger import logger
 
+
+def _resolve_ffmpeg_executable() -> str:
+    env_candidate = os.getenv("FFMPEG_BIN", "").strip()
+    if env_candidate and os.path.exists(env_candidate):
+        return env_candidate
+
+    path_candidate = shutil.which("ffmpeg")
+    if path_candidate:
+        return path_candidate
+
+    if os.name == "nt":
+        local_app_data = os.getenv("LOCALAPPDATA", "")
+        windows_profile = os.path.expanduser("~")
+        candidates = [
+            os.path.join(local_app_data, "Microsoft", "WinGet", "Links", "ffmpeg.exe") if local_app_data else "",
+            os.path.join(windows_profile, "AppData", "Local", "Microsoft", "WinGet", "Links", "ffmpeg.exe"),
+            os.path.join(os.getenv("ProgramFiles", ""), "ffmpeg", "bin", "ffmpeg.exe"),
+            os.path.join(os.getenv("ProgramFiles", ""), "FFmpeg", "bin", "ffmpeg.exe"),
+        ]
+        for candidate in candidates:
+            if candidate and os.path.exists(candidate):
+                return candidate
+
+    raise FileNotFoundError(
+        "ffmpeg executable not found. Install ffmpeg and ensure it is available on PATH or set FFMPEG_BIN."
+    )
+
 def convert_audio(input_path: str, output_path: str) -> None:
     """
     Convert audio to mono, 16kHz WAV using ffmpeg.
     """
     logger.info(f"Converting {input_path} to mono 16kHz WAV at {output_path}")
+    ffmpeg_bin = _resolve_ffmpeg_executable()
     cmd = [
-        'ffmpeg', '-y', '-i', input_path,
+        ffmpeg_bin, '-y', '-i', input_path,
         '-ac', '1', '-ar', '16000', '-vn', output_path
     ]
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

@@ -64,6 +64,11 @@ npm run dev          # → http://localhost:5001
 ## 🐍 `app/` — Python ML Services
 
 ```bash
-pip install -r requirements.txt
-python app.py
+# Linux/macOS
+./app/start.sh
+
+# Windows PowerShell
+powershell -ExecutionPolicy Bypass -File app/start.ps1
 ```
+
+`app/start.sh` and `app/start.ps1` install `ffmpeg` automatically if missing, then set up the Python environment and run the voice service.
