@@ -8,6 +8,7 @@ const webhookRoutes = require("./routes/webhook.routes");
 const transactionRoutes = require("./routes/transaction.routes");
 const insightsRoutes = require("./routes/insights.routes");
 const analyticsEngineRoutes = require("./routes/analyticsEngine.routes");
+const voiceRoutes = require("./routes/voiceRoute");
 const errorMiddleware = require("./middlewares/error.middleware");
 const authMiddleware = require("./middlewares/auth.middleware");
 const { sendSuccess, sendError } = require("./utils/apiResponse");
@@ -40,10 +41,11 @@ app.use("/api/auth", authRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/insights", insightsRoutes);
+<<<<<<< HEAD
 app.use("/api/analytics", analyticsEngineRoutes);
-
-app.get("/api/protected", authMiddleware, (req, res) => {
-  return sendSuccess(res, {
+=======
+app.use("/api/analytics", analyticsEngineRoutes);
+app.use("/api/voice", authMiddleware, voiceRoutes);
     user: req.user,
   }, "Protected profile fetched");
 });
