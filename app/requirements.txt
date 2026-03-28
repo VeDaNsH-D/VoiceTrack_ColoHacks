@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-multipart
+python-dotenv
+requests
+numpy
+scipy
+soundfile
+noisereduce
+webrtcvad; platform_system != "Windows"
+webrtcvad-wheels; platform_system == "Windows"
