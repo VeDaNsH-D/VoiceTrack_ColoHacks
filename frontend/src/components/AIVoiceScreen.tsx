@@ -45,28 +45,38 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userName, onNaviga
         </h1>
       </div>
 
-      {/* Growing gradient orb representing AI */}
+      {/* Comet Animation representing AI */}
       <div className="flex-1 flex items-center justify-center relative">
-        <motion.div
-          animate={{
-            scale: [1, 1.05, 1],
-            rotate: [0, 5, -5, 0],
-          }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-          className="w-72 h-72 rounded-full relative"
-          style={{
-            background: 'radial-gradient(circle at 60% 40%, rgba(138,155,128,0.8) 0%, rgba(168,152,115,0.6) 50%, rgba(168,152,115,0) 80%)',
-            boxShadow: '0 0 80px 40px rgba(168,152,115,0.2) inset, 0 0 40px 10px rgba(138,155,128,0.1)',
-            filter: 'blur(4px)'
-          }}
-        >
-          {/* Speckle/particle effect overlay simulated by small rotating dots */}
-          <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(#1A1A1A 1px, transparent 1px)', backgroundSize: '12px 12px' }}></div>
-        </motion.div>
+        {/* Circular Orbit Track */}
+        <div className="w-64 h-64 rounded-full border border-[#1A1A1A] border-opacity-10 relative flex items-center justify-center">
+          
+          {/* Soft pulsing center core */}
+          <motion.div 
+            animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            className="w-24 h-24 rounded-full bg-[#8A9B80] blur-2xl"
+          />
+
+          {/* Rotating Comet */}
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
+            className="absolute inset-0 rounded-full"
+            style={{ originX: 0.5, originY: 0.5 }}
+          >
+            {/* Comet Tail using a clipped conic gradient */}
+            <div 
+              className="absolute inset-0 rounded-full" 
+              style={{
+                background: 'conic-gradient(from 0deg, transparent 0deg, transparent 200deg, rgba(168,152,115,0.1) 280deg, rgba(138,155,128,0.8) 360deg)',
+                maskImage: 'radial-gradient(transparent 63%, black 64%)',
+                WebkitMaskImage: 'radial-gradient(transparent 63%, black 64%)'
+              }}
+            />
+            {/* Comet Head - Floating on the exact track line */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 bg-[#F8F5F2] rounded-full shadow-[0_0_15px_5px_rgba(138,155,128,0.9)]" />
+          </motion.div>
+        </div>
       </div>
 
       {/* Bottom Nav with cutout for Mic */}

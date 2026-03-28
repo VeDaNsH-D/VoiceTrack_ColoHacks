@@ -13,18 +13,21 @@ export type ViewState = 'landing' | 'auth' | 'voice' | 'dashboard' | 'history'
 export function App() {
   const [currentView, setCurrentView] = useState<ViewState>('landing')
   const [userName, setUserName] = useState<string>('')
+  const [userOccupation, setUserOccupation] = useState<string>('')
 
   const handleNavigate = (view: ViewState) => {
     setCurrentView(view)
   }
 
-  const handleLogin = (name: string) => {
+  const handleLogin = (name: string, occupation: string) => {
     setUserName(name)
+    setUserOccupation(occupation)
     setCurrentView('voice')
   }
 
   const handleDemo = () => {
     setUserName('Guest')
+    setUserOccupation('Tester')
     setCurrentView('voice')
   }
 
