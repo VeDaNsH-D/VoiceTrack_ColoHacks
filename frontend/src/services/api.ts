@@ -21,7 +21,7 @@ const apiClient = axios.create({
 // Audio Processing
 export const transcribeAudio = async (audioBlob: Blob): Promise<TranscriptionResult> => {
   const formData = new FormData()
-  formData.append('audio', audioBlob, 'recording.wav')
+  formData.append('file', audioBlob, 'recording.wav')
 
   const response = await apiClient.post<TranscriptionResult>('/transcribe', formData, {
     headers: {
