@@ -19,6 +19,9 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
   const [name, setName] = useState('')
   const [occupation, setOccupation] = useState('')
   const [password, setPassword] = useState('')
+  const [businessMode, setBusinessMode] = useState<'create' | 'join'>('create')
+  const [businessCode, setBusinessCode] = useState('')
+  const [businessPassword, setBusinessPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -55,6 +58,16 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
       return
     }
 
+    if (businessPassword.length < 6) {
+      setError(language === 'EN' ? 'Business password must be at least 6 characters.' : 'बिजनेस पासवर्ड कम से कम 6 अक्षरों का होना चाहिए।')
+      return
+    }
+
+    if (businessMode === 'join' && !businessCode.trim()) {
+      setError(language === 'EN' ? 'Business ID is required to join.' : 'जुड़ने के लिए बिजनेस आईडी आवश्यक है।')
+      return
+    }
+
     const identifier = `+91${phone}`
 
     setIsLoading(true)
@@ -67,6 +80,11 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
           name: name.trim(),
           phone: identifier,
           password,
+          businessMode,
+          businessName: businessMode === 'create' ? `${name.trim()}'s Business` : undefined,
+          businessType: occupation.trim().toLowerCase(),
+          businessCode: businessMode === 'join' ? businessCode.trim().toUpperCase() : undefined,
+          businessPassword,
         })
       } catch (signupError: unknown) {
         const status = axios.isAxiosError(signupError) ? signupError.response?.status : undefined
@@ -86,13 +104,14 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
         occupation: occupation.trim(),
         token: authResult.token,
         identifier,
+        businessCode: authResult.user.businessId?.businessCode,
       })
     } catch (apiError: unknown) {
       const isNetworkIssue = axios.isAxiosError(apiError) && !apiError.response
       const message = isNetworkIssue
         ? (language === 'EN'
-            ? 'Cannot reach backend server. Start backend on http://localhost:5000 and try again.'
-            : 'बैकएंड सर्वर तक पहुंच नहीं हो रही। कृपया backend को http://localhost:5000 पर चलाकर फिर प्रयास करें।')
+            ? 'Cannot reach backend server. Start backend on http://localhost:5001 and try again.'
+            : 'बैकएंड सर्वर तक पहुंच नहीं हो रही। कृपया backend को http://localhost:5001 पर चलाकर फिर प्रयास करें।')
         : ((axios.isAxiosError(apiError) ? apiError.response?.data?.message : undefined) ||
           (language === 'EN' ? 'Authentication failed. Please try again.' : 'ऑथेंटिकेशन असफल हुआ। कृपया दोबारा कोशिश करें।'))
       setError(String(message))
@@ -287,6 +306,53 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
                   />
                 </div>
 
+                <div className="glass-card p-4">
+                  <p className="text-xs font-semibold text-[#1A1A1A] opacity-60 mb-2 uppercase tracking-wider">
+                    {language === 'EN' ? 'Business Setup' : 'बिजनेस सेटअप'}
+                  </p>
+
+                  <div className="flex gap-2 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => setBusinessMode('create')}
+                      className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${businessMode === 'create' ? 'bg-[#161211] text-[#F8F5F2]' : 'bg-white/50 text-[#1A1A1A]/70'}`}
+                    >
+                      {language === 'EN' ? 'Create New' : 'नया बनाएं'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBusinessMode('join')}
+                      className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${businessMode === 'join' ? 'bg-[#161211] text-[#F8F5F2]' : 'bg-white/50 text-[#1A1A1A]/70'}`}
+                    >
+                      {language === 'EN' ? 'Join Existing' : 'मौजूदा से जुड़ें'}
+                    </button>
+                  </div>
+
+                  {businessMode === 'join' && (
+                    <input
+                      type="text"
+                      placeholder={language === 'EN' ? 'Enter Business ID (e.g. BIZ-AB12CD)' : 'बिजनेस आईडी डालें (जैसे BIZ-AB12CD)'}
+                      value={businessCode}
+                      onChange={(e) => setBusinessCode(e.target.value.toUpperCase())}
+                      className="bg-white/50 border border-white/40 rounded-xl px-3 py-2 w-full text-[#1A1A1A] placeholder:text-[#1A1A1A]/40 font-medium mb-2"
+                    />
+                  )}
+
+                  <input
+                    type="password"
+                    placeholder={language === 'EN' ? 'Business Password' : 'बिजनेस पासवर्ड'}
+                    value={businessPassword}
+                    onChange={(e) => setBusinessPassword(e.target.value)}
+                    className="bg-white/50 border border-white/40 rounded-xl px-3 py-2 w-full text-[#1A1A1A] placeholder:text-[#1A1A1A]/40 font-medium"
+                  />
+
+                  {businessMode === 'create' && (
+                    <p className="text-xs text-[#1A1A1A]/55 mt-2">
+                      {language === 'EN' ? 'A unique Business ID will be generated after signup.' : 'साइनअप के बाद यूनिक बिजनेस आईडी बनाई जाएगी।'}
+                    </p>
+                  )}
+                </div>
+
                 {error && (
                   <p className="text-sm font-semibold text-[#F85F54] px-1">
                     {error}
@@ -297,7 +363,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
                   <motion.button
                     whileTap={{ scale: 0.95 }}
                     type="submit"
-                    disabled={!name.trim() || !occupation.trim() || password.length < 6 || isLoading}
+                    disabled={!name.trim() || !occupation.trim() || password.length < 6 || businessPassword.length < 6 || (businessMode === 'join' && !businessCode.trim()) || isLoading}
                     className="w-full bg-[#161211] text-[#F8F5F2] py-4 rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex justify-center items-center"
                   >
                     {isLoading ? <div className="w-6 h-6 border-2 border-[#F8F5F2] border-t-transparent rounded-full animate-spin"></div> : (language === 'EN' ? 'Start Recording' : 'रिकॉर्डिंग शुरू करें')}

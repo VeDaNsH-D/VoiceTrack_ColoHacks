@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const Transaction = require("../models/transaction.model");
+const User = require("../models/user.model");
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -60,10 +61,19 @@ function getUserIdFilter(userId) {
   return null;
 }
 
-function buildBaseFilter(userId, timeRange) {
+async function buildBaseFilter(userId, timeRange) {
   const filter = {};
   const normalizedUserId = getUserIdFilter(userId);
-  if (normalizedUserId) {
+
+  if (normalizedUserId && mongoose.Types.ObjectId.isValid(userId)) {
+    const user = await User.findById(userId).select("businessId").lean();
+
+    if (user?.businessId) {
+      filter.businessId = user.businessId;
+    } else {
+      filter.userId = normalizedUserId;
+    }
+  } else if (normalizedUserId) {
     filter.userId = normalizedUserId;
   }
 
@@ -158,6 +168,23 @@ async function getSalesCount(filter) {
   };
 }
 
+async function getProfit(filter) {
+  const [result] = await Transaction.aggregate([
+    { $match: filter },
+    {
+      $group: {
+        _id: null,
+        totalProfit: { $sum: "$totals.netAmount" },
+      },
+    },
+  ]);
+
+  return {
+    type: "profit",
+    value: result?.totalProfit || 0,
+  };
+}
+
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -170,7 +197,7 @@ async function handleQuery(userId, intentData) {
   } = intentData || {};
 
   const normalizedProduct = normalizeProduct(product);
-  const filter = buildBaseFilter(userId, timeRange);
+  const filter = await buildBaseFilter(userId, timeRange);
 
   switch (intent) {
     case "GET_TOTAL_SALES":
@@ -181,6 +208,8 @@ async function handleQuery(userId, intentData) {
       return getTopProduct(filter);
     case "GET_SALES_COUNT":
       return getSalesCount(filter);
+    case "GET_PROFIT":
+      return getProfit(filter);
     default:
       return {
         type: "unknown",
@@ -195,4 +224,5 @@ module.exports = {
   getDateRange,
   buildBaseFilter,
   handleQuery,
+  getProfit,
 };

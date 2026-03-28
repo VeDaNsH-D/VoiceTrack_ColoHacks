@@ -36,6 +36,36 @@ const buildBusinessName = (name) => {
     return `${name}'s Business`;
 };
 
+const normalizeBusinessCode = (value) => {
+    return String(value || "").trim().toUpperCase();
+};
+
+const generateBusinessCodeCandidate = () => {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let suffix = "";
+
+    for (let index = 0; index < 6; index += 1) {
+        suffix += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+
+    return `BIZ-${suffix}`;
+};
+
+const generateUniqueBusinessCode = async () => {
+    ensureDatabaseReady();
+
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+        const candidate = generateBusinessCodeCandidate();
+        const existing = await Business.findOne({ businessCode: candidate }).select("_id");
+
+        if (!existing) {
+            return candidate;
+        }
+    }
+
+    throw new Error("Unable to generate unique business code. Please try again.");
+};
+
 const buildIdentityQuery = ({ email, phone }) => {
     if (email && phone) {
         return {
@@ -50,20 +80,71 @@ const buildIdentityQuery = ({ email, phone }) => {
     return { phone };
 };
 
-const createBusinessForUser = async (user) => {
+const createBusinessForUser = async (user, { businessName, businessType, businessPassword }) => {
     ensureDatabaseReady();
+    const businessCode = await generateUniqueBusinessCode();
+    const { salt, passwordHash } = hashPassword(businessPassword);
     const business = await Business.create({
-        name: buildBusinessName(user.name),
-        type: "vegetable",
+        businessCode,
+        accessPasswordHash: passwordHash,
+        accessPasswordSalt: salt,
+        name: businessName || buildBusinessName(user.name),
+        type: businessType || "general",
         owner: user._id,
         members: [user._id]
     });
 
     user.businessId = business._id;
+    user.role = "owner";
     await user.save();
+
+    return business;
 };
 
-const signupUser = async ({ name, email, phone, password }) => {
+const joinBusinessForUser = async (user, { businessCode, businessPassword }) => {
+    ensureDatabaseReady();
+    const normalizedCode = normalizeBusinessCode(businessCode);
+
+    const business = await Business.findOne({ businessCode: normalizedCode })
+        .select("+accessPasswordHash +accessPasswordSalt");
+
+    if (!business) {
+        throw new Error("Business ID not found");
+    }
+
+    const validAccessPassword = verifyPassword(
+        businessPassword,
+        business.accessPasswordHash,
+        business.accessPasswordSalt
+    );
+
+    if (!validAccessPassword) {
+        throw new Error("Invalid business password");
+    }
+
+    user.businessId = business._id;
+    user.role = "staff";
+    await user.save();
+
+    await Business.updateOne(
+        { _id: business._id },
+        { $addToSet: { members: user._id } }
+    );
+
+    return business;
+};
+
+const signupUser = async ({
+    name,
+    email,
+    phone,
+    password,
+    businessMode,
+    businessCode,
+    businessPassword,
+    businessName,
+    businessType
+}) => {
     ensureDatabaseReady();
     const existingUser = await User.findOne(buildIdentityQuery({ email, phone }));
 
@@ -81,7 +162,18 @@ const signupUser = async ({ name, email, phone, password }) => {
         passwordSalt: salt
     });
 
-    await createBusinessForUser(user);
+    if (businessMode === "join") {
+        await joinBusinessForUser(user, {
+            businessCode,
+            businessPassword
+        });
+    } else {
+        await createBusinessForUser(user, {
+            businessName,
+            businessType,
+            businessPassword
+        });
+    }
 
     return User.findById(user._id).populate("businessId");
 };

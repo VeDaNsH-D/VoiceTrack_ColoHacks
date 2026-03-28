@@ -5,13 +5,14 @@ import { getInsights, getTransactionHistory, type HistoryEntry, type InsightsRes
 
 interface DashboardMainProps {
   userId: string
+  businessCode?: string
   userName: string
   userOccupation: string
   onToggleSidebar: () => void
   language: 'EN' | 'HI'
 }
 
-export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, userName, userOccupation, onToggleSidebar, language }) => {
+export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessCode, userName, userOccupation, onToggleSidebar, language }) => {
   const [displayBalance, setDisplayBalance] = useState(0)
   const [showAnalytics, setShowAnalytics] = useState(false)
   const [insights, setInsights] = useState<InsightsResult>({
@@ -121,6 +122,11 @@ export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, userName, 
           {userOccupation && (
             <p className="text-[#1A1A1A]/50 text-sm mt-1">
               {language === 'EN' ? `Business type: ${userOccupation}` : `व्यवसाय प्रकार: ${userOccupation}`}
+            </p>
+          )}
+          {businessCode && (
+            <p className="text-[#1A1A1A]/60 text-xs mt-1 font-semibold tracking-wide">
+              {language === 'EN' ? `Business ID: ${businessCode}` : `बिजनेस आईडी: ${businessCode}`}
             </p>
           )}
         </motion.div>

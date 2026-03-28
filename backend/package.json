@@ -17,7 +17,6 @@
   },
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js",
-    "bench:cases": "node scripts/benchmark-cases.js"
+    "dev": "nodemon server.js"
   }
 }

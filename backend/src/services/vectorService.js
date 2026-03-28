@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const Transaction = require("../models/transaction.model");
+const User = require("../models/user.model");
 const { generateEmbedding } = require("./embeddingService");
 const logger = require("../utils/logger");
 
@@ -20,6 +21,20 @@ async function getRelevantContext(userId, query) {
   }
 
   try {
+    let scopeMatch = null;
+    if (mongoose.Types.ObjectId.isValid(cleanedUserId)) {
+      const user = await User.findById(cleanedUserId).select("businessId").lean();
+      if (user?.businessId) {
+        scopeMatch = { businessId: user.businessId };
+      } else {
+        scopeMatch = { userId: getUserIdFilter(cleanedUserId) };
+      }
+    }
+
+    if (!scopeMatch) {
+      return [];
+    }
+
     const embedding = await generateEmbedding(cleanedQuery);
 
     if (!Array.isArray(embedding) || embedding.length !== 384) {
@@ -37,9 +52,7 @@ async function getRelevantContext(userId, query) {
         },
       },
       {
-        $match: {
-          userId: getUserIdFilter(cleanedUserId),
-        },
+        $match: scopeMatch,
       },
       {
         $project: {

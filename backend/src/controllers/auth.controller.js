@@ -38,6 +38,11 @@ const signup = async (req, res) => {
         const email = normalizeEmail(req.body.email);
         const phone = normalizePhone(req.body.phone);
         const password = String(req.body.password || "");
+        const businessMode = String(req.body.businessMode || "create").trim().toLowerCase();
+        const businessCode = String(req.body.businessCode || "").trim().toUpperCase();
+        const businessPassword = String(req.body.businessPassword || "");
+        const businessName = normalizeName(req.body.businessName);
+        const businessType = normalizeName(req.body.businessType || "general").toLowerCase();
 
         if (!name) {
             return res.status(400).json({
@@ -74,11 +79,37 @@ const signup = async (req, res) => {
             });
         }
 
+        if (!["create", "join"].includes(businessMode)) {
+            return res.status(400).json({
+                success: false,
+                message: "businessMode must be either create or join"
+            });
+        }
+
+        if (businessPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: "Business password must be at least 6 characters long"
+            });
+        }
+
+        if (businessMode === "join" && !businessCode) {
+            return res.status(400).json({
+                success: false,
+                message: "Business ID is required to join an existing business"
+            });
+        }
+
         const user = await signupUser({
             name,
             email,
             phone,
-            password
+            password,
+            businessMode,
+            businessCode,
+            businessPassword,
+            businessName,
+            businessType
         });
         const token = generateToken(user);
 
@@ -88,11 +119,18 @@ const signup = async (req, res) => {
             token
         });
     } catch (error) {
-        const statusCode = error.message.includes("already exists") ? 409 : 500;
+        const errorMessage = String(error.message || "");
+        const statusCode = errorMessage.includes("already exists")
+            ? 409
+            : errorMessage.includes("not found")
+                ? 404
+                : errorMessage.includes("Invalid business password")
+                    ? 401
+                    : 500;
 
         return res.status(statusCode).json({
             success: false,
-            message: error.message
+            message: errorMessage || "Signup failed"
         });
     }
 };

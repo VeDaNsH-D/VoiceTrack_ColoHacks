@@ -232,12 +232,13 @@ const EXPENSE_KEYWORDS = new Set([
 function normalizeItemToken(value) {
   return String(value || "")
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}]/gu, "")
+    .replace(/[^\p{L}\p{M}\p{N}]/gu, "")
     .trim();
 }
 
 function extractRuleSales(segment) {
-  const salePattern = /(\d+)\s+([\p{L}]+)\s+(\d+)\s*(?:ka|ki|ke|rs|rupees?|₹)?/giu;
+  const salePattern = /(\d+)\s+([\p{L}\p{M}]+)\s+(\d+)\s*(?:ka|ki|ke|का|की|के|rs|rupees?|₹)?/giu;
+  const salePatternVerbFirst = /(?:sold|becha|bechi|beche|bika|bike|biki|बेचा|बेची|बेचे)\s+(\d+)\s+([\p{L}\p{M}]+)(?:\s+(?:at|for|ka|ki|ke))?\s+(\d+)/giu;
   const sales = [];
   let match;
 
@@ -253,6 +254,19 @@ function extractRuleSales(segment) {
     sales.push({ item, qty, price });
   }
 
+  while ((match = salePatternVerbFirst.exec(segment)) !== null) {
+    const qty = Number(match[1]);
+    const item = normalizeItemToken(match[2]);
+    const totalOrPrice = Number(match[3]);
+
+    if (!qty || !item || !totalOrPrice) {
+      continue;
+    }
+
+    const price = Math.max(1, Math.round(totalOrPrice / qty));
+    sales.push({ item, qty, price });
+  }
+
   return sales;
 }
 
@@ -260,7 +274,7 @@ function extractRuleExpenses(segment) {
   const expenses = [];
   const normalized = String(segment || "").toLowerCase();
 
-  const amountFirstPattern = /(\d+)\s*(?:ka|ki|ke)?\s+([\p{L}]+)/giu;
+  const amountFirstPattern = /(\d+)\s*(?:ka|ki|ke)?\s+([\p{L}\p{M}]+)/giu;
   let amountFirst;
   while ((amountFirst = amountFirstPattern.exec(segment)) !== null) {
     const amount = Number(amountFirst[1]);
@@ -271,6 +285,7 @@ function extractRuleExpenses(segment) {
 
     if (
       normalized.includes("khar") ||
+      normalized.includes("खरी") ||
       normalized.includes("paid") ||
       normalized.includes("liya") ||
       EXPENSE_KEYWORDS.has(item)
@@ -279,7 +294,7 @@ function extractRuleExpenses(segment) {
     }
   }
 
-  const itemFirstPattern = /([\p{L}]+)\s+(\d+)/giu;
+  const itemFirstPattern = /([\p{L}\p{M}]+)\s+(\d+)/giu;
   let itemFirst;
   while ((itemFirst = itemFirstPattern.exec(segment)) !== null) {
     const item = normalizeItemToken(itemFirst[1]);
@@ -290,6 +305,19 @@ function extractRuleExpenses(segment) {
     expenses.push({ item, amount });
   }
 
+  const amountItemVerbPattern = /(\d+)\s+(?:रुपये|रुपया|rs|rupees?)?\s*([\p{L}\p{M}]+)\s+(?:kharida|kharidi|खरीदा|खरीदी|liya|bought)/giu;
+  let amountItemVerb;
+  while ((amountItemVerb = amountItemVerbPattern.exec(segment)) !== null) {
+    const amount = Number(amountItemVerb[1]);
+    const item = normalizeItemToken(amountItemVerb[2]);
+
+    if (!amount || !item) {
+      continue;
+    }
+
+    expenses.push({ item, amount });
+  }
+
   return expenses;
 }
 
@@ -297,7 +325,7 @@ function ruleBasedExtractionSync(text) {
   const responseLanguage = detectResponseLanguage(text);
   const normalizedText = preprocessText(text);
   const segments = normalizedText
-    .split(/,|\.|\band\b|\baur\b/gi)
+    .split(/,|\.|\band\b|\baur\b|और/gi)
     .map((part) => part.trim())
     .filter(Boolean);
 
@@ -306,10 +334,10 @@ function ruleBasedExtractionSync(text) {
 
   for (const segment of segments) {
     const normalizedSegment = segment.toLowerCase();
-    const saleIntent = /\b(becha|beche|bika|biki|sold|sale|sales|bikri)\b/i.test(
+    const saleIntent = /\b(becha|beche|bechi|bika|biki|bike|sold|sale|sales|bikri|बेचा|बेचे|बेची|बिका|बिकी)\b/i.test(
       normalizedSegment
     );
-    const expenseIntent = /\b(kharida|kharidi|kharcha|paid|pay|liya|expense|rent|transport|cost)\b/i.test(
+    const expenseIntent = /\b(kharida|kharidi|kharcha|paid|pay|liya|expense|rent|transport|cost|खरीदा|खरीदी|खर्च)\b/i.test(
       normalizedSegment
     );
 

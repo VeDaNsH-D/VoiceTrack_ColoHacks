@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const User = require("../models/user.model");
 const { processTransactionText } = require("../services/extraction.service");
 const {
   saveProcessedTransaction,
@@ -18,6 +19,50 @@ function normalizeObjectId(value) {
   }
 
   return null;
+}
+
+async function resolveUserAndBusinessIds(userId, businessId) {
+  const normalizedUserId = normalizeObjectId(userId);
+  const normalizedBusinessId = normalizeObjectId(businessId);
+
+  if (normalizedBusinessId) {
+    return {
+      userId: normalizedUserId,
+      businessId: normalizedBusinessId,
+    };
+  }
+
+  if (normalizedUserId) {
+    const user = await User.findById(normalizedUserId).select("businessId").lean();
+    return {
+      userId: normalizedUserId,
+      businessId: user?.businessId || null,
+    };
+  }
+
+  return {
+    userId: null,
+    businessId: null,
+  };
+}
+
+async function resolveBusinessScope(userId) {
+  const normalizedUserId = typeof userId === "string" ? userId.trim() : "";
+
+  if (!mongoose.Types.ObjectId.isValid(normalizedUserId)) {
+    return {
+      filterByUser: false,
+      userId: normalizedUserId,
+      businessId: "",
+    };
+  }
+
+  const user = await User.findById(normalizedUserId).select("businessId").lean();
+  return {
+    filterByUser: !user?.businessId,
+    userId: normalizedUserId,
+    businessId: user?.businessId ? String(user.businessId) : "",
+  };
 }
 
 async function processText(req, res, next) {
@@ -50,12 +95,11 @@ async function processText(req, res, next) {
 
     if (save !== false) {
       const rawLog = await saveRawLog(rawLogPayload);
-      const normalizedUserId = normalizeObjectId(userId);
-      const normalizedBusinessId = normalizeObjectId(businessId);
+      const resolvedIds = await resolveUserAndBusinessIds(userId, businessId);
 
       await saveProcessedTransaction({
-        ...(normalizedUserId ? { userId: normalizedUserId } : {}),
-        ...(normalizedBusinessId ? { businessId: normalizedBusinessId } : {}),
+        ...(resolvedIds.userId ? { userId: resolvedIds.userId } : {}),
+        ...(resolvedIds.businessId ? { businessId: resolvedIds.businessId } : {}),
         rawText: text,
         normalizedText,
         rawLogId: rawLog?._id || null,
@@ -85,18 +129,25 @@ async function listHistory(req, res, next) {
       : 50;
 
     const allTransactions = await listTransactions();
-    const normalizedUserId = typeof userId === "string" ? userId.trim() : "";
-    const shouldFilterByUser = normalizedUserId ? mongoose.Types.ObjectId.isValid(normalizedUserId) : false;
+    const scope = await resolveBusinessScope(typeof userId === "string" ? userId : "");
     const start = startDate ? new Date(startDate) : null;
     const end = endDate ? new Date(endDate) : null;
 
     const filtered = allTransactions
       .filter((entry) => {
-        if (shouldFilterByUser) {
-          const entryUserId = entry.userId
-            ? String(entry.userId._id || entry.userId)
-            : "";
-          if (entryUserId !== normalizedUserId) {
+        const entryUserId = entry.userId
+          ? String(entry.userId._id || entry.userId)
+          : "";
+        const entryBusinessId = entry.businessId
+          ? String(entry.businessId._id || entry.businessId)
+          : "";
+
+        if (scope.businessId) {
+          if (entryBusinessId !== scope.businessId) {
+            return false;
+          }
+        } else if (scope.filterByUser && scope.userId) {
+          if (entryUserId !== scope.userId) {
             return false;
           }
         }
@@ -159,7 +210,7 @@ async function listHistory(req, res, next) {
 
 async function saveTransaction(req, res, next) {
   try {
-    const { userId, rawText, normalizedText, sales, expenses, meta } = req.body || {};
+    const { userId, businessId, rawText, normalizedText, sales, expenses, meta } = req.body || {};
 
     const rawLogPayload = {
       text: rawText,
@@ -175,9 +226,11 @@ async function saveTransaction(req, res, next) {
     };
 
     const rawLog = await saveRawLog(rawLogPayload);
+    const resolvedIds = await resolveUserAndBusinessIds(userId, businessId);
 
     const entry = await saveProcessedTransaction({
-      userId: normalizeObjectId(userId),
+      ...(resolvedIds.userId ? { userId: resolvedIds.userId } : {}),
+      ...(resolvedIds.businessId ? { businessId: resolvedIds.businessId } : {}),
       rawText,
       normalizedText,
       rawLogId: rawLog?._id || null,

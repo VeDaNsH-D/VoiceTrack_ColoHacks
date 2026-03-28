@@ -17,6 +17,7 @@ const ALLOWED_INTENTS = new Set([
   "GET_PRODUCT_SALES",
   "GET_TOP_PRODUCT",
   "GET_SALES_COUNT",
+  "GET_PROFIT",
   "UNKNOWN",
 ]);
 
@@ -42,6 +43,10 @@ const TOP_PRODUCT_PATTERNS = [
 
 const SALES_COUNT_PATTERNS = [
   /\b(transaction|transactions|entries|kitne bill|kitni sale hui|sales count|count)\b/i,
+];
+
+const PROFIT_PATTERNS = [
+  /\b(profit|fayda|faida|munafa|net|net amount|net profit|nuksan|loss)\b/i,
 ];
 
 const PRODUCT_SALES_PATTERNS = [
@@ -210,6 +215,14 @@ function inferIntentFromRules(message) {
     };
   }
 
+  if (PROFIT_PATTERNS.some((pattern) => pattern.test(normalizedMessage))) {
+    return {
+      intent: "GET_PROFIT",
+      timeRange,
+      product: null,
+    };
+  }
+
   if (PRODUCT_SALES_PATTERNS.some((pattern) => pattern.test(normalizedMessage)) && product) {
     return {
       intent: "GET_PRODUCT_SALES",
@@ -219,7 +232,7 @@ function inferIntentFromRules(message) {
   }
 
   if (
-    /\b(becha|sales|sale|revenue|kitna)\b/i.test(normalizedMessage)
+    /\b(becha|bikri|sales|sale|revenue|kitna|kitni)\b/i.test(normalizedMessage)
   ) {
     return {
       intent: "GET_TOTAL_SALES",

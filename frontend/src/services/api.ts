@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL?.trim() || 'http://localhost:5000').replace(/\/$/, '')
+const API_BASE = (import.meta.env.VITE_API_BASE_URL?.trim() || 'http://localhost:5001').replace(/\/$/, '')
 const VOICE_API_BASE = (import.meta.env.VITE_VOICE_API_BASE_URL?.trim() || 'http://localhost:8000').replace(/\/$/, '')
 
 const apiClient = axios.create({
@@ -19,12 +19,14 @@ const voiceApiClient = axios.create({
 export interface AuthUser {
   _id: string
   name: string
+  role?: 'owner' | 'staff' | 'admin'
   phone?: string
   email?: string
   businessId?: {
     _id: string
     name: string
     type: string
+    businessCode?: string
   } | null
 }
 
@@ -180,6 +182,11 @@ export async function signupUser(payload: {
   phone?: string
   email?: string
   password: string
+  businessMode: 'create' | 'join'
+  businessName?: string
+  businessType?: string
+  businessCode?: string
+  businessPassword: string
 }): Promise<AuthResult> {
   const response = await apiClient.post<AuthResult>('/api/auth/signup', payload)
   return response.data

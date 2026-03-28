@@ -16,7 +16,7 @@ function preprocessText(text) {
 
   normalized = replaceWholeWords(normalized, NUMBER_WORDS);
   normalized = replaceWholeWords(normalized, ITEM_MAPPINGS);
-  normalized = normalized.replace(/\b(rs|rupaye)\b|₹/g, " ");
+  normalized = normalized.replace(/\b(rs|rupaye|rupees?)\b|₹|रुपये|रुपया|रू|rs\.?/g, " ");
 
   for (const filler of FILLER_WORDS) {
     const pattern = new RegExp(`\\b${escapeRegExp(filler)}\\b`, "g");

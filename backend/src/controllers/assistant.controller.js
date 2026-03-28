@@ -15,10 +15,10 @@ function formatRupee(value) {
 
 function buildClarification(message) {
   if (isHindiLike(message)) {
-    return "Main samjha nahi. Kya aap total sales, kisi item ki sales, top product, ya transaction count ke baare mein puchhna chahte hain?";
+    return "Main samjha nahi. Kya aap total sales, profit/fayda, kisi item ki sales, top product, ya transaction count ke baare mein puchhna chahte hain?";
   }
 
-  return "I could not understand that clearly. Please ask about total sales, product sales, top product, or transaction count.";
+  return "I could not understand that clearly. Please ask about total sales, profit, product sales, top product, or transaction count.";
 }
 
 function buildGroundedReply(message, queryResult) {
@@ -55,6 +55,20 @@ function buildGroundedReply(message, queryResult) {
     return hindi
       ? `Aapke ${Number(queryResult?.value || 0)} transactions mile.`
       : `You have ${Number(queryResult?.value || 0)} transactions.`;
+  }
+
+  if (type === "profit") {
+    const profit = Number(queryResult?.value || 0);
+
+    if (profit >= 0) {
+      return hindi
+        ? `Aapka net fayda ${formatRupee(profit)} hai.`
+        : `Your net profit is ${formatRupee(profit)}.`;
+    }
+
+    return hindi
+      ? `Aapka net nuksan ${formatRupee(Math.abs(profit))} hai.`
+      : `Your net loss is ${formatRupee(Math.abs(profit))}.`;
   }
 
   return buildClarification(message);
