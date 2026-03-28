@@ -7,6 +7,7 @@ const chatRoutes = require("./routes/chat");
 const webhookRoutes = require("./routes/webhook.routes");
 const transactionRoutes = require("./routes/transaction.routes");
 const insightsRoutes = require("./routes/insights.routes");
+const voiceRoutes = require("./routes/voiceRoute");
 const errorMiddleware = require("./middlewares/error.middleware");
 const authMiddleware = require("./middlewares/auth.middleware");
 const { sendSuccess, sendError } = require("./utils/apiResponse");
@@ -39,6 +40,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/insights", insightsRoutes);
+app.use("/api/voice", authMiddleware, voiceRoutes);
 
 app.get("/api/protected", authMiddleware, (req, res) => {
   return sendSuccess(res, {

@@ -9,7 +9,7 @@ const API_BASE = (
 const VOICE_API_BASE = (
   import.meta.env.VITE_VOICE_API_BASE_URL?.trim() ||
   import.meta.env.VITE_PYTHON_SERVICE_URL?.trim() ||
-  'http://localhost:8000'
+  'http://localhost:8001'
 ).replace(/\/$/, '')
 
 const apiClient = axios.create({
@@ -212,6 +212,29 @@ export interface ConversationResult {
   }
 }
 
+export interface VoiceNarrationTransaction {
+  item: string
+  quantity: number
+  price: number
+  total: number
+  type: 'credit' | 'debit'
+  confidence: number
+  approx: boolean
+}
+
+export interface VoiceNarrationResult {
+  status: 'recorded' | 'needs_confirmation'
+  rawTranscript: string
+  normalizedTranscript: string
+  transactions: VoiceNarrationTransaction[]
+  overallConfidence: number
+  audioUrl?: string | null
+  confirmationMessage?: string
+  actionButtons?: string[]
+  responseMessage?: string
+  recordId?: string
+}
+
 interface ApiEnvelope<T> {
   success: boolean
   data: T
@@ -366,6 +389,65 @@ export async function sendConversationAudio(payload: {
   })
 
   return unwrapApiResponse<ConversationResult>(response.data)
+}
+
+export async function processVoiceNarration(payload: {
+  audioBlob?: Blob
+  transcript?: string
+  userId?: string
+  businessId?: string
+  languageHint?: string
+  forceSave?: boolean
+}): Promise<VoiceNarrationResult> {
+  const formData = new FormData()
+
+  if (payload.audioBlob) {
+    formData.append('audio', payload.audioBlob, 'voice-note.webm')
+  }
+
+  if (payload.transcript) {
+    formData.append('transcript', payload.transcript)
+  }
+
+  if (payload.userId) {
+    formData.append('userId', payload.userId)
+  }
+
+  if (payload.businessId) {
+    formData.append('businessId', payload.businessId)
+  }
+
+  if (payload.languageHint) {
+    formData.append('languageHint', payload.languageHint)
+  }
+
+  if (typeof payload.forceSave === 'boolean') {
+    formData.append('forceSave', String(payload.forceSave))
+  }
+
+  const response = await apiClient.post<ApiEnvelope<VoiceNarrationResult> | VoiceNarrationResult>(
+    '/api/voice/process',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      timeout: 180000,
+    }
+  )
+
+  return unwrapApiResponse<VoiceNarrationResult>(response.data)
+}
+
+export async function undoLastVoiceTransaction(payload: {
+  userId?: string
+  businessId?: string
+}): Promise<{ undoneId: string; rawText: string }> {
+  const response = await apiClient.post<ApiEnvelope<{ undoneId: string; rawText: string }> | { undoneId: string; rawText: string }>(
+    '/api/voice/undo-last',
+    payload
+  )
+  return unwrapApiResponse<{ undoneId: string; rawText: string }>(response.data)
 }
 
 export async function getProtectedProfile(): Promise<{ success: boolean; user: unknown }> {
