@@ -23,10 +23,13 @@ const EXPENSE_HINTS = ["liya", "kharida", "expense", "udhaar"];
 
 const CONFIDENCE_THRESHOLD = 0.7;
 
+const BUSINESS_TYPES = ["vegetable", "snacks", "tea", "general"];
+
 module.exports = {
   FILLER_WORDS,
   NUMBER_WORDS,
   ITEM_MAPPINGS,
   EXPENSE_HINTS,
   CONFIDENCE_THRESHOLD,
+  BUSINESS_TYPES,
 };
