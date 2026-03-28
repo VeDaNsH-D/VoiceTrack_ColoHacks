@@ -56,7 +56,7 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onDemo, language
           transition={{ duration: 0.5 }}
           className="bg-[#fce0c7] text-[#1A1A1A] px-4 py-1.5 rounded-full text-sm font-semibold flex items-center gap-2 mb-8 shadow-sm border border-white/40"
         >
-          {language === 'EN' ? 'New AI Voice Features are live 🎉' : 'नई AI वॉयस सुविधाएँ लाइव हैं 🎉'}
+          {language === 'EN' ? 'New AI Voice Features are live' : 'नई AI वॉयस सुविधाएँ लाइव हैं 🎉'}
           <span className="text-gray-600 block w-[1px] h-4 bg-black/20 mx-1"></span>
           <button onClick={onGetStarted} className="flex items-center gap-1 hover:underline">
             {language === 'EN' ? 'Check it Out' : 'इसे देखें'} <FiArrowRight size={14} />

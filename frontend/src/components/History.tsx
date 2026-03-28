@@ -10,6 +10,23 @@ interface HistoryProps {
 
 type Period = 'Today' | 'This Week' | 'This Month' | 'Custom'
 
+const formatStatementDateTime = (value: string, language: 'EN' | 'HI') => {
+  return new Date(value).toLocaleString(language === 'EN' ? 'en-IN' : 'hi-IN', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
+
+const formatCurrency = (value: number) => Number(value || 0).toFixed(2)
+
+const escapeCsvValue = (value: string | number) => {
+  const text = String(value ?? '')
+  if (/[",\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`
+  }
+  return text
+}
+
 export const History: React.FC<HistoryProps> = ({ userId, onToggleSidebar, language }) => {
   const [activePeriod, setActivePeriod] = useState<Period>('Today')
   const [startDate, setStartDate] = useState('')
@@ -84,6 +101,80 @@ export const History: React.FC<HistoryProps> = ({ userId, onToggleSidebar, langu
     })
   }, [records, activePeriod, startDate, endDate])
 
+  const statementRangeLabel = useMemo(() => {
+    if (activePeriod !== 'Custom') {
+      return activePeriod
+    }
+
+    if (!startDate || !endDate) {
+      return language === 'EN' ? 'Custom range not selected' : 'कस्टम रेंज चयनित नहीं है'
+    }
+
+    const from = new Date(startDate).toLocaleDateString(language === 'EN' ? 'en-IN' : 'hi-IN', { dateStyle: 'medium' })
+    const to = new Date(endDate).toLocaleDateString(language === 'EN' ? 'en-IN' : 'hi-IN', { dateStyle: 'medium' })
+    return `${from} - ${to}`
+  }, [activePeriod, startDate, endDate, language])
+
+  const downloadStatementCsv = () => {
+    if (filteredData.length === 0) {
+      return
+    }
+
+    const sorted = [...filteredData].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    let runningBalance = 0
+
+    const lines: string[] = []
+    lines.push(escapeCsvValue('VoiceTrace Statement'))
+    lines.push(`${escapeCsvValue('Generated On')},${escapeCsvValue(new Date().toLocaleString(language === 'EN' ? 'en-IN' : 'hi-IN'))}`)
+    lines.push(`${escapeCsvValue('Period')},${escapeCsvValue(statementRangeLabel)}`)
+    lines.push(`${escapeCsvValue('Records')},${escapeCsvValue(sorted.length)}`)
+    lines.push('')
+
+    lines.push([
+      'Date & Time',
+      'Narration',
+      'Type',
+      'Debit (INR)',
+      'Credit (INR)',
+      'Net (INR)',
+      'Running Balance (INR)',
+    ].map(escapeCsvValue).join(','))
+
+    sorted.forEach((entry) => {
+      const debit = Number(entry.totals.expenseAmount || 0)
+      const credit = Number(entry.totals.salesAmount || 0)
+      const net = Number(entry.totals.netAmount || 0)
+      runningBalance += net
+
+      const type = credit > 0 && debit > 0
+        ? 'Mixed'
+        : credit > 0
+          ? 'Credit'
+          : 'Debit'
+
+      lines.push([
+        formatStatementDateTime(entry.createdAt, language),
+        entry.rawText || entry.normalizedText || '',
+        type,
+        formatCurrency(debit),
+        formatCurrency(credit),
+        formatCurrency(net),
+        formatCurrency(runningBalance),
+      ].map(escapeCsvValue).join(','))
+    })
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    const stamp = new Date().toISOString().slice(0, 10)
+    anchor.href = url
+    anchor.download = `voicetrace-statement-${stamp}.csv`
+    document.body.appendChild(anchor)
+    anchor.click()
+    document.body.removeChild(anchor)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -111,6 +202,22 @@ export const History: React.FC<HistoryProps> = ({ userId, onToggleSidebar, langu
               {language === 'EN' ? 'Past Records' : 'पिछले रिकॉर्ड'}
             </p>
           </div>
+        </div>
+
+        <div className="w-full flex justify-end mb-3">
+          <button
+            type="button"
+            onClick={downloadStatementCsv}
+            disabled={isLoading || filteredData.length === 0 || (activePeriod === 'Custom' && (!startDate || !endDate))}
+            className="inline-flex items-center gap-2 bg-[#161211] text-[#F8F5F2] px-4 py-2 rounded-xl text-xs font-semibold tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            {language === 'EN' ? 'Download Statement' : 'स्टेटमेंट डाउनलोड करें'}
+          </button>
         </div>
 
         {/* Period Filter Pills */}
@@ -207,10 +314,7 @@ export const History: React.FC<HistoryProps> = ({ userId, onToggleSidebar, langu
                 >
                   <div className="flex justify-between items-start mb-3">
                     <span className="text-[11px] font-bold text-[#1A1A1A] opacity-50 tracking-wide uppercase">
-                      {new Date(item.createdAt).toLocaleString(language === 'EN' ? 'en-IN' : 'hi-IN', {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      })}
+                      {formatStatementDateTime(item.createdAt, language)}
                     </span>
                     <div className="flex gap-2">
                       <span className="text-xs font-semibold text-[#8A9B80] bg-[#8A9B80] bg-opacity-20 px-2 py-1 rounded">+₹{Math.round(item.totals.salesAmount || 0)}</span>
