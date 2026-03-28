@@ -10,51 +10,43 @@ interface AuthProps {
   language: 'EN' | 'HI'
 }
 
-type AuthStep = 'phone' | 'otp' | 'details'
+type AuthStep = 'choice' | 'signup' | 'login'
 
 export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
-  const [step, setStep] = useState<AuthStep>('phone')
+  const [step, setStep] = useState<AuthStep>('choice')
   const [phone, setPhone] = useState('')
-  const [otp, setOtp] = useState('')
+  const [loginIdentifier, setLoginIdentifier] = useState('')
   const [name, setName] = useState('')
   const [occupation, setOccupation] = useState('')
   const [password, setPassword] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
   const [businessMode, setBusinessMode] = useState<'create' | 'join'>('create')
   const [businessCode, setBusinessCode] = useState('')
   const [businessPassword, setBusinessPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const handlePhoneSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleStepChange = (next: AuthStep) => {
     setError('')
-    if (phone.length >= 10) {
-      setIsLoading(true)
-      setTimeout(() => {
-        setIsLoading(false)
-        setStep('otp')
-      }, 800)
-    }
+    setStep(next)
   }
 
-  const handleOtpSubmit = (e: React.FormEvent) => {
+  const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    if (otp.length === 4) {
-      setIsLoading(true)
-      setTimeout(() => {
-        setIsLoading(false)
-        setStep('details')
-      }, 600)
+
+    if (!name.trim() || !occupation.trim()) {
+      setError(language === 'EN' ? 'Please fill name and occupation.' : 'कृपया नाम और पेशा भरें।')
+      return
     }
-  }
 
-  const handleDetailsSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
+    if (phone.length < 10) {
+      setError(language === 'EN' ? 'Please enter a valid 10-digit phone number.' : 'कृपया सही 10 अंकों का फ़ोन नंबर डालें।')
+      return
+    }
 
-    if (!name.trim() || !occupation.trim() || password.length < 6) {
-      setError(language === 'EN' ? 'Please fill all fields with a valid password.' : 'कृपया सभी फ़ील्ड भरें और सही पासवर्ड दें।')
+    if (password.length < 6) {
+      setError(language === 'EN' ? 'Password must be at least 6 characters.' : 'पासवर्ड कम से कम 6 अक्षरों का होना चाहिए।')
       return
     }
 
@@ -69,34 +61,19 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
     }
 
     const identifier = `+91${phone}`
-
     setIsLoading(true)
 
     try {
-      let authResult
-
-      try {
-        authResult = await signupUser({
-          name: name.trim(),
-          phone: identifier,
-          password,
-          businessMode,
-          businessName: businessMode === 'create' ? `${name.trim()}'s Business` : undefined,
-          businessType: occupation.trim().toLowerCase(),
-          businessCode: businessMode === 'join' ? businessCode.trim().toUpperCase() : undefined,
-          businessPassword,
-        })
-      } catch (signupError: unknown) {
-        const status = axios.isAxiosError(signupError) ? signupError.response?.status : undefined
-        if (status === 409) {
-          authResult = await loginUser({
-            identifier,
-            password,
-          })
-        } else {
-          throw signupError
-        }
-      }
+      const authResult = await signupUser({
+        name: name.trim(),
+        phone: identifier,
+        password,
+        businessMode,
+        businessName: businessMode === 'create' ? `${name.trim()}'s Business` : undefined,
+        businessType: occupation.trim().toLowerCase(),
+        businessCode: businessMode === 'join' ? businessCode.trim().toUpperCase() : undefined,
+        businessPassword,
+      })
 
       onLogin({
         userId: authResult.user._id,
@@ -105,6 +82,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
         token: authResult.token,
         identifier,
         businessCode: authResult.user.businessId?.businessCode,
+        businessId: authResult.user.businessId?._id,
       })
     } catch (apiError: unknown) {
       const isNetworkIssue = axios.isAxiosError(apiError) && !apiError.response
@@ -113,7 +91,52 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
             ? 'Cannot reach backend server. Start backend on http://localhost:5001 and try again.'
             : 'बैकएंड सर्वर तक पहुंच नहीं हो रही। कृपया backend को http://localhost:5001 पर चलाकर फिर प्रयास करें।')
         : ((axios.isAxiosError(apiError) ? apiError.response?.data?.message : undefined) ||
-          (language === 'EN' ? 'Authentication failed. Please try again.' : 'ऑथेंटिकेशन असफल हुआ। कृपया दोबारा कोशिश करें।'))
+          (language === 'EN' ? 'Signup failed. Please try again.' : 'साइनअप असफल हुआ। कृपया दोबारा कोशिश करें।'))
+      setError(String(message))
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+
+    const rawIdentifier = loginIdentifier.trim()
+    if (!rawIdentifier || loginPassword.length < 6) {
+      setError(language === 'EN' ? 'Enter valid login credentials.' : 'कृपया सही लॉगिन जानकारी भरें।')
+      return
+    }
+
+    const normalizedIdentifier = /^\d{10}$/.test(rawIdentifier)
+      ? `+91${rawIdentifier}`
+      : rawIdentifier.toLowerCase()
+
+    setIsLoading(true)
+
+    try {
+      const authResult = await loginUser({
+        identifier: normalizedIdentifier,
+        password: loginPassword,
+      })
+
+      onLogin({
+        userId: authResult.user._id,
+        name: authResult.user.name || 'User',
+        occupation: authResult.user.businessId?.type || '',
+        token: authResult.token,
+        identifier: normalizedIdentifier,
+        businessCode: authResult.user.businessId?.businessCode,
+        businessId: authResult.user.businessId?._id,
+      })
+    } catch (apiError: unknown) {
+      const isNetworkIssue = axios.isAxiosError(apiError) && !apiError.response
+      const message = isNetworkIssue
+        ? (language === 'EN'
+            ? 'Cannot reach backend server. Start backend on http://localhost:5001 and try again.'
+            : 'बैकएंड सर्वर तक पहुंच नहीं हो रही। कृपया backend को http://localhost:5001 पर चलाकर फिर प्रयास करें।')
+        : ((axios.isAxiosError(apiError) ? apiError.response?.data?.message : undefined) ||
+          (language === 'EN' ? 'Login failed. Please try again.' : 'लॉगिन असफल हुआ। कृपया दोबारा कोशिश करें।'))
       setError(String(message))
     } finally {
       setIsLoading(false)
@@ -131,9 +154,11 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
       {/* Back Button */}
       <button 
         onClick={() => {
-          if (step === 'phone') onBack()
-          else if (step === 'otp') setStep('phone')
-          else setStep('otp')
+          if (step === 'choice') {
+            onBack()
+          } else {
+            handleStepChange('choice')
+          }
         }}
         className="w-10 h-10 bg-[#E6DFD7] bg-opacity-60 rounded-full flex items-center justify-center hover:bg-opacity-100 transition-colors mt-6 z-10"
       >
@@ -144,9 +169,9 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
 
       <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full relative -mt-10">
         <AnimatePresence mode="wait">
-          {step === 'phone' && (
+          {step === 'choice' && (
             <motion.div
-              key="phone"
+              key="choice"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -154,97 +179,44 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
             >
               <div className="mb-10 text-center">
                 <div className="w-16 h-16 mx-auto bg-gradient-to-br from-[#8A9B80] to-[#A89873] rounded-2xl flex items-center justify-center mb-6 shadow-lg">
-                   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F8F5F2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-                    <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F8F5F2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
                   </svg>
                 </div>
                 <h1 className="text-3xl font-semibold text-[#1A1A1A] tracking-tight mb-2">
-                  {language === 'EN' ? 'Welcome Back' : 'वापसी पर स्वागत है'}
+                  {language === 'EN' ? 'Choose Account Action' : 'अकाउंट विकल्प चुनें'}
                 </h1>
                 <p className="text-[#1A1A1A] opacity-60 text-sm">
-                  {language === 'EN' ? 'Enter your phone number to continue' : 'जारी रखने के लिए अपना फ़ोन नंबर दर्ज करें'}
+                  {language === 'EN' ? 'Sign up for a new account or log in to an existing one.' : 'नया अकाउंट बनाएं या मौजूदा अकाउंट में लॉगिन करें।'}
                 </p>
               </div>
 
-              <form onSubmit={handlePhoneSubmit} className="space-y-6">
-                <div className="glass-card p-4 flex items-center gap-3">
-                  <span className="text-[#1A1A1A] font-semibold">+91</span>
-                  <div className="w-px h-6 bg-[#1A1A1A] opacity-20"></div>
-                  <input 
-                    type="tel" 
-                    placeholder="98765 43210"
-                    maxLength={10}
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                    className="bg-transparent border-none outline-none w-full text-[#1A1A1A] placeholder:text-[#1A1A1A] placeholder:opacity-40 font-medium text-lg tracking-wide"
-                    autoFocus
-                  />
-                </div>
+              <div className="space-y-4">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  type="button"
+                  onClick={() => handleStepChange('signup')}
+                  className="w-full bg-[#161211] text-[#F8F5F2] py-4 rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex justify-center items-center"
+                >
+                  {language === 'EN' ? 'Sign Up' : 'साइन अप'}
+                </motion.button>
 
                 <motion.button
                   whileTap={{ scale: 0.95 }}
-                  type="submit"
-                  disabled={phone.length < 10 || isLoading}
-                  className="w-full bg-[#161211] text-[#F8F5F2] py-4 rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex justify-center items-center"
+                  type="button"
+                  onClick={() => handleStepChange('login')}
+                  className="w-full bg-transparent border border-[#161211]/20 text-[#161211] py-4 rounded-2xl font-semibold tracking-wide"
                 >
-                  {isLoading ? <div className="w-6 h-6 border-2 border-[#F8F5F2] border-t-transparent rounded-full animate-spin"></div> : (language === 'EN' ? 'Send OTP' : 'OTP भेजें')}
+                  {language === 'EN' ? 'Log In' : 'लॉगिन'}
                 </motion.button>
-              </form>
-            </motion.div>
-          )}
-
-          {step === 'otp' && (
-            <motion.div
-              key="otp"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="w-full"
-            >
-              <div className="mb-10 text-center">
-                <div className="w-16 h-16 mx-auto bg-gradient-to-br from-[#8A9B80] to-[#A89873] rounded-2xl flex items-center justify-center mb-6 shadow-lg">
-                   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F8F5F2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                  </svg>
-                </div>
-                <h1 className="text-3xl font-semibold text-[#1A1A1A] tracking-tight mb-2">
-                  {language === 'EN' ? 'Verify OTP' : 'OTP सत्यापित करें'}
-                </h1>
-                <p className="text-[#1A1A1A] opacity-60 text-sm">
-                  {language === 'EN' ? `We've sent a 4-digit code to +91 ${phone}` : `हमने +91 ${phone} पर 4-अंकीय कोड भेजा है`}
-                </p>
               </div>
-
-              <form onSubmit={handleOtpSubmit} className="space-y-6">
-                <div className="glass-card p-4 flex items-center gap-3">
-                  <input 
-                    type="text" 
-                    placeholder="1 2 3 4"
-                    maxLength={4}
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                    className="bg-transparent border-none outline-none w-full text-center text-[#1A1A1A] placeholder:text-[#1A1A1A] placeholder:opacity-40 font-bold text-2xl tracking-[0.5em]"
-                    autoFocus
-                  />
-                </div>
-
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  type="submit"
-                  disabled={otp.length < 4 || isLoading}
-                  className="w-full bg-[#161211] text-[#F8F5F2] py-4 rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex justify-center items-center"
-                >
-                  {isLoading ? <div className="w-6 h-6 border-2 border-[#F8F5F2] border-t-transparent rounded-full animate-spin"></div> : (language === 'EN' ? 'Verify & Continue' : 'सत्यापित करें')}
-                </motion.button>
-              </form>
             </motion.div>
           )}
 
-          {step === 'details' && (
+          {step === 'signup' && (
             <motion.div
-              key="details"
+              key="signup"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -258,14 +230,32 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
                   </svg>
                 </div>
                 <h1 className="text-3xl font-semibold text-[#1A1A1A] tracking-tight mb-2">
-                  {language === 'EN' ? 'Create Profile' : 'प्रोफ़ाइल बनाएं'}
+                  {language === 'EN' ? 'Sign Up' : 'साइन अप'}
                 </h1>
                 <p className="text-[#1A1A1A] opacity-60 text-sm">
-                  {language === 'EN' ? 'Tell us a bit about your business' : 'हमें अपने व्यवसाय के बारे में थोड़ा बताएं'}
+                  {language === 'EN' ? 'Create your account without OTP verification.' : 'OTP के बिना अपना अकाउंट बनाएं।'}
                 </p>
               </div>
 
-              <form onSubmit={handleDetailsSubmit} className="space-y-4">
+              <form onSubmit={handleSignupSubmit} className="space-y-4">
+                <div className="glass-card p-4">
+                  <p className="text-xs font-semibold text-[#1A1A1A] opacity-60 mb-1 uppercase tracking-wider">
+                    {language === 'EN' ? 'Phone Number' : 'फ़ोन नंबर'}
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[#1A1A1A] font-semibold">+91</span>
+                    <div className="w-px h-6 bg-[#1A1A1A] opacity-20"></div>
+                    <input
+                      type="tel"
+                      placeholder="98765 43210"
+                      maxLength={10}
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                      className="bg-transparent border-none outline-none w-full text-[#1A1A1A] placeholder:text-[#1A1A1A] placeholder:opacity-30 font-medium"
+                    />
+                  </div>
+                </div>
+
                 <div className="glass-card p-4">
                   <p className="text-xs font-semibold text-[#1A1A1A] opacity-60 mb-1 uppercase tracking-wider">
                     {language === 'EN' ? 'Your Name' : 'आपका नाम'}
@@ -363,10 +353,81 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
                   <motion.button
                     whileTap={{ scale: 0.95 }}
                     type="submit"
-                    disabled={!name.trim() || !occupation.trim() || password.length < 6 || businessPassword.length < 6 || (businessMode === 'join' && !businessCode.trim()) || isLoading}
+                    disabled={phone.length < 10 || !name.trim() || !occupation.trim() || password.length < 6 || businessPassword.length < 6 || (businessMode === 'join' && !businessCode.trim()) || isLoading}
                     className="w-full bg-[#161211] text-[#F8F5F2] py-4 rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex justify-center items-center"
                   >
-                    {isLoading ? <div className="w-6 h-6 border-2 border-[#F8F5F2] border-t-transparent rounded-full animate-spin"></div> : (language === 'EN' ? 'Start Recording' : 'रिकॉर्डिंग शुरू करें')}
+                    {isLoading ? <div className="w-6 h-6 border-2 border-[#F8F5F2] border-t-transparent rounded-full animate-spin"></div> : (language === 'EN' ? 'Create Account' : 'अकाउंट बनाएं')}
+                  </motion.button>
+                </div>
+              </form>
+            </motion.div>
+          )}
+
+          {step === 'login' && (
+            <motion.div
+              key="login"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="w-full"
+            >
+              <div className="mb-10 text-center">
+                <div className="w-16 h-16 mx-auto bg-gradient-to-br from-[#8A9B80] to-[#A89873] rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F8F5F2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  </svg>
+                </div>
+                <h1 className="text-3xl font-semibold text-[#1A1A1A] tracking-tight mb-2">
+                  {language === 'EN' ? 'Log In' : 'लॉगिन'}
+                </h1>
+                <p className="text-[#1A1A1A] opacity-60 text-sm">
+                  {language === 'EN' ? 'Use phone (10 digits) or email with password.' : 'पासवर्ड के साथ फ़ोन (10 अंक) या ईमेल डालें।'}
+                </p>
+              </div>
+
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
+                <div className="glass-card p-4">
+                  <p className="text-xs font-semibold text-[#1A1A1A] opacity-60 mb-1 uppercase tracking-wider">
+                    {language === 'EN' ? 'Phone or Email' : 'फ़ोन या ईमेल'}
+                  </p>
+                  <input
+                    type="text"
+                    placeholder={language === 'EN' ? '9876543210 or name@email.com' : '9876543210 या name@email.com'}
+                    value={loginIdentifier}
+                    onChange={(e) => setLoginIdentifier(e.target.value)}
+                    className="bg-transparent border-none outline-none w-full text-[#1A1A1A] placeholder:text-[#1A1A1A] placeholder:opacity-30 font-medium"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="glass-card p-4">
+                  <p className="text-xs font-semibold text-[#1A1A1A] opacity-60 mb-1 uppercase tracking-wider">
+                    {language === 'EN' ? 'Password' : 'पासवर्ड'}
+                  </p>
+                  <input
+                    type="password"
+                    placeholder="******"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className="bg-transparent border-none outline-none w-full text-[#1A1A1A] placeholder:text-[#1A1A1A] placeholder:opacity-30 font-medium"
+                  />
+                </div>
+
+                {error && (
+                  <p className="text-sm font-semibold text-[#F85F54] px-1">
+                    {error}
+                  </p>
+                )}
+
+                <div className="pt-2">
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    type="submit"
+                    disabled={!loginIdentifier.trim() || loginPassword.length < 6 || isLoading}
+                    className="w-full bg-[#161211] text-[#F8F5F2] py-4 rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex justify-center items-center"
+                  >
+                    {isLoading ? <div className="w-6 h-6 border-2 border-[#F8F5F2] border-t-transparent rounded-full animate-spin"></div> : (language === 'EN' ? 'Log In' : 'लॉगिन')}
                   </motion.button>
                 </div>
               </form>

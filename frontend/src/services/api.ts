@@ -33,8 +33,43 @@ export interface AuthUser {
 export interface AuthResult {
   success: boolean
   user: AuthUser
+  business?: {
+    _id: string
+    businessCode?: string
+    name: string
+    type: string
+  } | null
   token: string
   message?: string
+}
+
+export interface BusinessDetailsResult {
+  success: boolean
+  storedInDb: boolean
+  business: {
+    _id: string
+    businessCode: string
+    name: string
+    type: string
+    membersCount: number
+    collaborationEnabled: boolean
+    owner: {
+      _id: string
+      name?: string
+      email?: string
+      phone?: string
+      role?: string
+    } | null
+    members: Array<{
+      _id: string
+      name?: string
+      email?: string
+      phone?: string
+      role?: string
+    }>
+    createdAt: string
+    updatedAt: string
+  }
 }
 
 export interface ProcessedTransaction {
@@ -202,6 +237,17 @@ export async function loginUser(payload: {
 
 export async function getAuthStatus(): Promise<{ authenticated: boolean; message: string }> {
   const response = await apiClient.get<{ authenticated: boolean; message: string }>('/api/auth/status')
+  return response.data
+}
+
+export async function getBusinessDetails(params: {
+  userId?: string
+  businessCode?: string
+  businessId?: string
+}): Promise<BusinessDetailsResult> {
+  const response = await apiClient.get<BusinessDetailsResult>('/api/auth/business', {
+    params,
+  })
   return response.data
 }
 

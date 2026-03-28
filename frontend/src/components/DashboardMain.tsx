@@ -1,18 +1,26 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { AnalyticsModal } from './AnalyticsModal.tsx'
-import { getInsights, getTransactionHistory, type HistoryEntry, type InsightsResult } from '../services/api'
+import {
+  getBusinessDetails,
+  getInsights,
+  getTransactionHistory,
+  type BusinessDetailsResult,
+  type HistoryEntry,
+  type InsightsResult,
+} from '../services/api'
 
 interface DashboardMainProps {
   userId: string
   businessCode?: string
+  businessId?: string
   userName: string
   userOccupation: string
   onToggleSidebar: () => void
   language: 'EN' | 'HI'
 }
 
-export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessCode, userName, userOccupation, onToggleSidebar, language }) => {
+export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessCode, businessId, userName, userOccupation, onToggleSidebar, language }) => {
   const [displayBalance, setDisplayBalance] = useState(0)
   const [showAnalytics, setShowAnalytics] = useState(false)
   const [insights, setInsights] = useState<InsightsResult>({
@@ -20,6 +28,8 @@ export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessCo
     transactionCount: 0,
   })
   const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [businessDetails, setBusinessDetails] = useState<BusinessDetailsResult | null>(null)
+  const [copyFeedback, setCopyFeedback] = useState('')
   const finalBalance = Math.max(0, insights.totals.sales - insights.totals.expenses)
 
   useEffect(() => {
@@ -54,6 +64,38 @@ export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessCo
     }
   }, [userId])
 
+  useEffect(() => {
+    let mounted = true
+
+    const loadBusinessDetails = async () => {
+      if (!userId && !businessCode && !businessId) {
+        setBusinessDetails(null)
+        return
+      }
+
+      try {
+        const response = await getBusinessDetails({
+          ...(userId ? { userId } : {}),
+          ...(businessCode ? { businessCode } : {}),
+          ...(businessId ? { businessId } : {}),
+        })
+        if (mounted) {
+          setBusinessDetails(response)
+        }
+      } catch {
+        if (mounted) {
+          setBusinessDetails(null)
+        }
+      }
+    }
+
+    loadBusinessDetails()
+
+    return () => {
+      mounted = false
+    }
+  }, [userId, businessCode, businessId])
+
   // Animate balance
   useEffect(() => {
     let animationFrame: number
@@ -82,6 +124,21 @@ export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessCo
   const itemVariants = {
     hidden: { opacity: 0, y: 15 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
+  }
+
+  const handleCopy = async (value: string, label: string) => {
+    if (!value || value === 'N/A') {
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopyFeedback(language === 'EN' ? `${label} copied` : `${label} कॉपी हुआ`)
+      window.setTimeout(() => setCopyFeedback(''), 1800)
+    } catch {
+      setCopyFeedback(language === 'EN' ? 'Copy failed' : 'कॉपी असफल')
+      window.setTimeout(() => setCopyFeedback(''), 1800)
+    }
   }
 
   return (
@@ -180,6 +237,59 @@ export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessCo
               <path d="M7 17L17 7M17 7H7M17 7V17" />
             </svg>
           </button>
+        </motion.div>
+
+        <motion.div variants={itemVariants} className="glass-card p-5 mt-4">
+          <p className="text-[13px] font-medium text-[#1A1A1A] opacity-80 mb-2">
+            {language === 'EN' ? 'Business visibility & collaboration' : 'बिजनेस जानकारी और सहयोग'}
+          </p>
+          <div className="space-y-1 text-sm text-[#1A1A1A]/80">
+            <div className="flex items-center justify-between gap-2">
+              <p>
+                {language === 'EN' ? 'Business Code:' : 'बिजनेस कोड:'}{' '}
+                <span className="font-semibold text-[#1A1A1A]">{businessDetails?.business.businessCode || businessCode || 'N/A'}</span>
+              </p>
+              <button
+                type="button"
+                onClick={() => handleCopy(businessDetails?.business.businessCode || businessCode || 'N/A', language === 'EN' ? 'Business code' : 'बिजनेस कोड')}
+                className="text-xs font-semibold px-3 py-1 rounded-full border border-[#1A1A1A]/20 hover:bg-white/50 transition-colors"
+              >
+                {language === 'EN' ? 'Copy' : 'कॉपी'}
+              </button>
+            </div>
+            <div className="flex items-start justify-between gap-2">
+              <p>
+                {language === 'EN' ? 'Business DB ID:' : 'बिजनेस डीबी आईडी:'}{' '}
+                <span className="font-semibold text-[#1A1A1A] break-all">{businessDetails?.business._id || businessId || 'N/A'}</span>
+              </p>
+              <button
+                type="button"
+                onClick={() => handleCopy(businessDetails?.business._id || businessId || 'N/A', language === 'EN' ? 'Business ID' : 'बिजनेस आईडी')}
+                className="text-xs font-semibold px-3 py-1 rounded-full border border-[#1A1A1A]/20 hover:bg-white/50 transition-colors"
+              >
+                {language === 'EN' ? 'Copy' : 'कॉपी'}
+              </button>
+            </div>
+            <p>
+              {language === 'EN' ? 'Stored in DB:' : 'डीबी में सेव:'}{' '}
+              <span className="font-semibold text-[#1A1A1A]">{businessDetails?.storedInDb ? (language === 'EN' ? 'Yes' : 'हां') : (language === 'EN' ? 'Unknown' : 'अज्ञात')}</span>
+            </p>
+            <p>
+              {language === 'EN' ? 'Members:' : 'सदस्य:'}{' '}
+              <span className="font-semibold text-[#1A1A1A]">{businessDetails?.business.membersCount ?? 0}</span>
+            </p>
+            <p>
+              {language === 'EN' ? 'Collaboration:' : 'सहयोग:'}{' '}
+              <span className="font-semibold text-[#1A1A1A]">
+                {businessDetails?.business.collaborationEnabled
+                  ? (language === 'EN' ? 'Active (shared business)' : 'सक्रिय (साझा बिजनेस)')
+                  : (language === 'EN' ? 'Single member' : 'एक सदस्य')}
+              </span>
+            </p>
+            {copyFeedback && (
+              <p className="text-xs font-semibold text-[#8A9B80] pt-1">{copyFeedback}</p>
+            )}
+          </div>
         </motion.div>
       </motion.div>
 

@@ -20,6 +20,7 @@ export interface AuthSession {
   token: string
   identifier: string
   businessCode?: string
+  businessId?: string
 }
 
 function getSavedSession(): AuthSession | null {
@@ -91,6 +92,7 @@ export function App() {
       token: '',
       identifier: 'demo-user',
       businessCode: 'DEMO',
+      businessId: 'DEMO',
     })
     setCurrentView('voice')
   }
@@ -143,7 +145,7 @@ export function App() {
             exit={{ opacity: 0 }}
             className="flex-1 overflow-y-auto"
           >
-            <DashboardMain userId={session?.userId || ''} businessCode={session?.businessCode} userName={userName} userOccupation={userOccupation} onToggleSidebar={toggleSidebar} language={language} />
+            <DashboardMain userId={session?.userId || ''} businessCode={session?.businessCode} businessId={session?.businessId} userName={userName} userOccupation={userOccupation} onToggleSidebar={toggleSidebar} language={language} />
           </motion.div>
         )}
 

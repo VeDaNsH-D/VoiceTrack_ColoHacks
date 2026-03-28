@@ -12,6 +12,19 @@ async function getAuthStatus(req, res, next) {
 const { signupUser, loginUser } = authService;
 const { generateToken } = require("../services/jwt.service");
 
+const buildBusinessSummary = (user) => {
+    if (!user?.businessId) {
+        return null;
+    }
+
+    return {
+        _id: user.businessId._id,
+        businessCode: user.businessId.businessCode,
+        name: user.businessId.name,
+        type: user.businessId.type
+    };
+};
+
 const normalizePhone = (phone) => {
     return String(phone || "").replace(/\s+/g, "").trim();
 };
@@ -112,10 +125,12 @@ const signup = async (req, res) => {
             businessType
         });
         const token = generateToken(user);
+        const business = buildBusinessSummary(user);
 
         return res.status(201).json({
             success: true,
             user,
+            business,
             token
         });
     } catch (error) {
@@ -156,10 +171,12 @@ const login = async (req, res) => {
             password
         });
         const token = generateToken(user);
+        const business = buildBusinessSummary(user);
 
         return res.status(200).json({
             success: true,
             user,
+            business,
             token
         });
     } catch (error) {
@@ -172,8 +189,48 @@ const login = async (req, res) => {
     }
 };
 
+const getBusinessDetails = async (req, res) => {
+    try {
+        const userId = String(req.query.userId || "").trim();
+        const businessCode = String(req.query.businessCode || "").trim().toUpperCase();
+        const businessId = String(req.query.businessId || "").trim();
+
+        if (!userId && !businessCode && !businessId) {
+            return res.status(400).json({
+                success: false,
+                message: "Provide at least one of userId, businessCode, or businessId"
+            });
+        }
+
+        const business = await authService.getBusinessSnapshot({
+            userId,
+            businessCode,
+            businessId
+        });
+
+        if (!business) {
+            return res.status(404).json({
+                success: false,
+                message: "Business not found"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            storedInDb: true,
+            business
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Failed to load business details"
+        });
+    }
+};
+
 module.exports = {
   getAuthStatus,
   signup,
-  login
+  login,
+  getBusinessDetails
 };

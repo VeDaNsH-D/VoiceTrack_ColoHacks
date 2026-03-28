@@ -40,6 +40,11 @@ const normalizeBusinessCode = (value) => {
     return String(value || "").trim().toUpperCase();
 };
 
+const normalizeObjectId = (value) => {
+    const normalized = String(value || "").trim();
+    return mongoose.Types.ObjectId.isValid(normalized) ? normalized : "";
+};
+
 const generateBusinessCodeCandidate = () => {
     const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let suffix = "";
@@ -101,8 +106,7 @@ const createBusinessForUser = async (user, { businessName, businessType, busines
     return business;
 };
 
-const joinBusinessForUser = async (user, { businessCode, businessPassword }) => {
-    ensureDatabaseReady();
+const resolveJoinBusiness = async ({ businessCode, businessPassword }) => {
     const normalizedCode = normalizeBusinessCode(businessCode);
 
     const business = await Business.findOne({ businessCode: normalizedCode })
@@ -121,6 +125,13 @@ const joinBusinessForUser = async (user, { businessCode, businessPassword }) => 
     if (!validAccessPassword) {
         throw new Error("Invalid business password");
     }
+
+    return business;
+};
+
+const joinBusinessForUser = async (user, { businessCode, businessPassword }) => {
+    ensureDatabaseReady();
+    const business = await resolveJoinBusiness({ businessCode, businessPassword });
 
     user.businessId = business._id;
     user.role = "staff";
@@ -154,6 +165,10 @@ const signupUser = async ({
 
     const { salt, passwordHash } = hashPassword(password);
 
+    if (businessMode === "join") {
+        await resolveJoinBusiness({ businessCode, businessPassword });
+    }
+
     const user = await User.create({
         name,
         email: email || undefined,
@@ -162,17 +177,22 @@ const signupUser = async ({
         passwordSalt: salt
     });
 
-    if (businessMode === "join") {
-        await joinBusinessForUser(user, {
-            businessCode,
-            businessPassword
-        });
-    } else {
-        await createBusinessForUser(user, {
-            businessName,
-            businessType,
-            businessPassword
-        });
+    try {
+        if (businessMode === "join") {
+            await joinBusinessForUser(user, {
+                businessCode,
+                businessPassword
+            });
+        } else {
+            await createBusinessForUser(user, {
+                businessName,
+                businessType,
+                businessPassword
+            });
+        }
+    } catch (error) {
+        await User.deleteOne({ _id: user._id });
+        throw error;
     }
 
     return User.findById(user._id).populate("businessId");
@@ -201,8 +221,59 @@ const loginUser = async ({ identifier, password }) => {
     return user;
 };
 
+const getBusinessSnapshot = async ({ userId, businessCode, businessId }) => {
+    ensureDatabaseReady();
+
+    const normalizedBusinessCode = normalizeBusinessCode(businessCode);
+    const normalizedBusinessId = normalizeObjectId(businessId);
+    const normalizedUserId = normalizeObjectId(userId);
+
+    let resolvedBusinessId = normalizedBusinessId;
+
+    if (!resolvedBusinessId && normalizedUserId) {
+        const user = await User.findById(normalizedUserId).select("businessId").lean();
+        if (user?.businessId) {
+            resolvedBusinessId = String(user.businessId);
+        }
+    }
+
+    let business = null;
+
+    if (resolvedBusinessId) {
+        business = await Business.findById(resolvedBusinessId)
+            .populate("owner", "_id name email phone role")
+            .populate("members", "_id name email phone role")
+            .lean();
+    } else if (normalizedBusinessCode) {
+        business = await Business.findOne({ businessCode: normalizedBusinessCode })
+            .populate("owner", "_id name email phone role")
+            .populate("members", "_id name email phone role")
+            .lean();
+    }
+
+    if (!business) {
+        return null;
+    }
+
+    const members = Array.isArray(business.members) ? business.members : [];
+
+    return {
+        _id: business._id,
+        businessCode: business.businessCode,
+        name: business.name,
+        type: business.type,
+        owner: business.owner || null,
+        members,
+        membersCount: members.length,
+        collaborationEnabled: members.length > 1,
+        createdAt: business.createdAt,
+        updatedAt: business.updatedAt
+    };
+};
+
 module.exports = {
     getAuthStatus,
     signupUser,
-    loginUser
+    loginUser,
+    getBusinessSnapshot
 };
