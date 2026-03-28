@@ -184,34 +184,36 @@ export const AIInsightsPage: React.FC<AIInsightsPageProps> = ({
       exit={{ opacity: 0 }}
       className="h-screen bg-app-gradient flex flex-col"
     >
-      <div className="flex-1 overflow-y-auto px-6 py-10 pb-32">
-        <div className="mb-6 flex justify-start mt-4">
+      <div className="flex-1 overflow-y-auto scrollbar-hide px-5 py-10 pb-32">
+        <div className="mb-6 flex items-center justify-between mt-4">
           <button
             onClick={onToggleSidebar}
-            className="w-10 h-10 bg-white bg-opacity-60 rounded-full flex items-center justify-center hover:bg-opacity-100 transition-colors shadow-sm"
+            className="w-11 h-11 rounded-full glass-card flex items-center justify-center shadow-sm"
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="3" y1="12" x2="21" y2="12"></line>
-              <line x1="3" y1="6" x2="21" y2="6"></line>
-              <line x1="3" y1="18" x2="21" y2="18"></line>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
+          <div className="text-[12px] font-bold uppercase tracking-widest text-[#1A1A1A]/40">
+            {language === 'EN' ? 'AI Insights' : 'AI इनसाइट्स'}
+          </div>
+          <div className="w-11" />
         </div>
 
         <div className="mb-6">
-          <h1 className="text-3xl font-semibold text-[#1A1A1A]">
-            {language === 'EN' ? 'AI Insights' : 'AI इनसाइट्स'}
+          <h1 className="text-[28px] font-extrabold tracking-tight text-[#1A1A1A]">
+            {language === 'EN' ? `Smart Predictions` : 'स्मार्ट प्रेडिक्शन'}
           </h1>
-          <p className="text-[#1A1A1A]/60 mt-1">
-            {language === 'EN' ? `Smart predictions for ${userName || 'your business'}.` : `${userName || 'आपके बिजनेस'} के लिए स्मार्ट प्रेडिक्शन।`}
+          <p className="text-[13.5px] text-[#1A1A1A]/50 font-medium mt-1">
+            {language === 'EN' ? `For ${userName || 'your business'}.` : `${userName || 'आपके बिजनेस'} के लिए।`}
           </p>
           <div className="mt-4 flex items-center gap-3">
             <button
               onClick={() => void handleTrainModel()}
               disabled={training || loading}
-              className="px-4 py-2 rounded-xl bg-[#1A1A1A] text-white text-sm font-medium disabled:opacity-60"
+              className="btn-primary !text-[13px] !py-2.5 !px-5 !rounded-2xl disabled:opacity-50"
             >
-              {training ? 'Training model...' : 'Train Model'}
+              {training ? 'Training…' : 'Train Model'}
             </button>
             {trainResult?.trained && (
               <p className="text-xs text-[#1A1A1A]/70">

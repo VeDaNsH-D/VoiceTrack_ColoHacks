@@ -1,47 +1,69 @@
-# VoiceTrack
+# VoiceTrack — Folder Structure
 
-This repository contains the VoiceTrack frontend and backend services.
+## 📁 Project Layout
 
-Detailed service docs:
-
-- backend/README.md
-- app/README.md
-
-## Frontend
-
-The frontend is a React + Vite application.
-
-Common commands:
-
-```bash
-npm install
-npm run dev
+```
+VoiceTrack_ColoHacks/
+├── frontend/    ← 📱 Android / Capacitor Mobile App
+├── website/     ← 🌐 Desktop Marketing Website
+├── backend/     ← ⚙️  Node.js Express API
+└── app/         ← 🐍 Python ML Services
 ```
 
-## Backend
+---
 
-The backend service lives in `backend/` and exposes the transaction-processing API.
+## 📱 `frontend/` — Mobile App (Android)
 
-Common commands:
+Built with **React + Vite + Capacitor**.  
+This is the app-first, mobile-optimised UI — the screens vendors actually use on their phones.
+
+### Run dev server:
+```bash
+cd frontend
+npm install
+npm run dev          # → http://localhost:3000
+```
+
+### Build for Android:
+```bash
+npm run build
+npx cap sync android
+npx cap open android   # Opens in Android Studio
+```
+
+---
+
+## 🌐 `website/` — Marketing Website (Desktop-first)
+
+Built with **React + Vite + TailwindCSS**.  
+Full desktop-first landing page with Hero, Features, How It Works, Pricing, Testimonials, Footer, and a split-screen Auth page.
+
+### Run dev server:
+```bash
+cd website
+npm install
+npm run dev          # → http://localhost:5174
+```
+
+### Pages / Sections:
+- **Landing** — Hero, Features, How It Works, Pricing, Testimonials, Footer
+- **Auth** — Split-screen Create Account / Log In (connects to backend API)
+
+---
+
+## ⚙️ `backend/` — Node.js API
 
 ```bash
 cd backend
 npm install
-npm run dev
+npm run dev          # → http://localhost:5001
 ```
 
-Main endpoint:
+---
 
-- `POST /process-text`
+## 🐍 `app/` — Python ML Services
 
-Example request:
-
-```json
-{
-  "text": "Aaj 3 chai 10 ka aur 1 samosa 15 ka, 50 ka doodh liya"
-}
+```bash
+pip install -r requirements.txt
+python app.py
 ```
-
-Health check:
-
-- `GET /health`

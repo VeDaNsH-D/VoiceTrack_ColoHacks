@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { AnalyticsModal } from './AnalyticsModal.tsx'
 import { getInsights, getTransactionHistory, type HistoryEntry, type InsightsResult } from '../services/api'
+import { FiTrendingUp, FiTrendingDown, FiArrowRight } from 'react-icons/fi'
 
 interface DashboardMainProps {
   userId: string
@@ -24,40 +25,26 @@ export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessId
   const loadInsights = React.useCallback(async () => {
     try {
       const response = await getInsights(userId || undefined)
-      const historyResponse = await getTransactionHistory({
-        userId: userId || undefined,
-        limit: 100,
-      })
+      const historyResponse = await getTransactionHistory({ userId: userId || undefined, limit: 100 })
       setInsights(response)
       setHistory(historyResponse.transactions)
     } catch {
-      setInsights({
-        totals: { sales: 0, expenses: 0 },
-        transactionCount: 0,
-      })
+      setInsights({ totals: { sales: 0, expenses: 0 }, transactionCount: 0 })
       setHistory([])
     }
   }, [userId])
 
   useEffect(() => {
     void loadInsights()
-
-    const onTransactionSaved = () => {
-      void loadInsights()
-    }
+    const onTransactionSaved = () => void loadInsights()
     window.addEventListener('voicetrack:transaction-saved', onTransactionSaved)
-
-    return () => {
-      window.removeEventListener('voicetrack:transaction-saved', onTransactionSaved)
-    }
+    return () => window.removeEventListener('voicetrack:transaction-saved', onTransactionSaved)
   }, [loadInsights])
 
-  // Animate balance
   useEffect(() => {
     let animationFrame: number
     let currentValue = 0
-    const increment = finalBalance / 40
-
+    const increment = finalBalance / 45
     const animate = () => {
       currentValue += increment
       if (currentValue < finalBalance) {
@@ -67,19 +54,17 @@ export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessId
         setDisplayBalance(finalBalance)
       }
     }
-
     animationFrame = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(animationFrame)
   }, [finalBalance])
 
   const containerVariants = {
     hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.1 } },
+    visible: { opacity: 1, transition: { staggerChildren: 0.09, delayChildren: 0.05 } },
   }
-
   const itemVariants = {
-    hidden: { opacity: 0, y: 15 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
+    hidden: { opacity: 0, y: 18 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: 'easeOut' } },
   }
 
   return (
@@ -93,85 +78,130 @@ export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessId
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="flex-1 overflow-y-auto px-6 py-10 pb-32 relative z-10"
+        className="flex-1 overflow-y-auto scrollbar-hide px-5 pt-10 pb-32 space-y-5"
       >
-        {/* Top Handle to Close Dashboard overlay */}
-        <motion.div variants={itemVariants} className="mb-6 flex justify-start mt-4">
+        {/* Header row */}
+        <motion.div variants={itemVariants} className="flex items-center justify-between">
           <button
             onClick={onToggleSidebar}
-            className="w-10 h-10 bg-white bg-opacity-60 rounded-full flex items-center justify-center hover:bg-opacity-100 transition-colors shadow-sm"
+            className="w-11 h-11 rounded-full glass-card flex items-center justify-center shadow-sm"
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="3" y1="12" x2="21" y2="12"></line>
-              <line x1="3" y1="6" x2="21" y2="6"></line>
-              <line x1="3" y1="18" x2="21" y2="18"></line>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
+          <div className="text-[12px] font-bold uppercase tracking-widest text-[#1A1A1A]/40">
+            {language === 'EN' ? 'Dashboard' : 'डैशबोर्ड'}
+          </div>
+          <div className="w-11" />
         </motion.div>
 
-        {/* Greeting & Subtitle */}
-        <motion.div variants={itemVariants} className="mb-8">
-          <h1 className="text-4xl font-semibold tracking-tight text-[#1A1A1A] mb-2 leading-tight">
-            {language === 'EN' ? 'Hello,' : 'नमस्ते,'} <br /><span className="text-[#8A9B80]">{userName || 'User'}</span>
+        {/* Greeting */}
+        <motion.div variants={itemVariants}>
+          <p className="text-[14px] text-[#1A1A1A]/50 font-semibold">
+            {language === 'EN' ? 'Hello,' : 'नमस्ते,'}
+          </p>
+          <h1 className="text-[34px] font-extrabold tracking-tight text-[#1A1A1A] leading-tight">
+            {userName || 'User'} <span className="text-[#8A9B80]">✦</span>
           </h1>
-          <p className="text-[#1A1A1A]/60 font-medium">
-            {language === 'EN' ? 'AI manages your ledger so you can focus on sales.' : 'AI आपका लेजर प्रबंधित करता है ताकि आप बिक्री पर ध्यान दे सकें।'}
+          <p className="text-[13.5px] text-[#1A1A1A]/50 font-medium mt-0.5">
+            {language === 'EN' ? "Here's your ledger overview." : 'आपका लेजर ओवरव्यू।'}
           </p>
         </motion.div>
 
-        {/* Balance Card Container */}
-        <motion.div variants={itemVariants} className="mb-4">
-          <h2 className="text-lg font-bold text-[#1A1A1A] mb-4">
-            {language === 'EN' ? 'Your ledger and monthly progress' : 'आपका लेजर और मासिक प्रगति'}
-          </h2>
-          <div className="w-full glass-card rounded-3xl p-6 relative overflow-hidden group shadow-lg">
-            {/* Background pattern */}
-            <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#1A1A1A_1px,transparent_1px)] [background-size:16px_16px]"></div>
+        {/* Main Balance Card */}
+        <motion.div variants={itemVariants}>
+          <div className="card-dark rounded-[26px] p-6 relative overflow-hidden">
+            {/* Decorative circles */}
+            <div className="absolute -right-8 -top-8 w-36 h-36 rounded-full bg-white/[0.04]" />
+            <div className="absolute -right-2 bottom-4 w-20 h-20 rounded-full bg-white/[0.03]" />
+            <div className="absolute right-12 top-4 w-10 h-10 rounded-full bg-[#8A9B80]/15" />
 
-            <div className="relative z-10 flex flex-col items-center">
-              <span className="text-[13px] font-bold uppercase tracking-wider text-[#1A1A1A]/50 mb-2">
-                {language === 'EN' ? 'this month' : 'इस महीने'}
+            <p className="text-[11px] font-bold uppercase tracking-widest text-white/35 mb-1 relative z-10">
+              {language === 'EN' ? 'Net Balance · This Month' : 'शुद्ध शेष · इस महीने'}
+            </p>
+
+            <div className="text-[52px] font-extrabold tracking-tight text-white leading-none relative z-10 flex items-end gap-1.5 mt-1">
+              <span className="text-[28px] pb-2 text-white/60">₹</span>
+              <span>
+                {displayBalance.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </span>
-              <div className="text-[54px] font-semibold text-[#1A1A1A] tracking-tighter flex items-end">
-                <span className="text-3xl pb-2 mr-1">₹</span>
-                {displayBalance.toLocaleString('en-IN', {
-                  maximumFractionDigits: 0,
-                })}
-                <span className="text-[#8B8B8B] text-4xl pb-[6px]">.05</span>
-              </div>
-              <div className="inline-flex items-center gap-1.5 bg-[#8A9B80]/10 px-3 py-1.5 rounded-full mt-4">
-                <div className="w-2 h-2 rounded-full bg-[#8A9B80]"></div>
-                <span className="text-sm font-semibold text-[#8A9B80]">
-                  {language === 'EN' ? `${insights.transactionCount} transactions processed` : `${insights.transactionCount} लेन-देन प्रोसेस हुए`}
+            </div>
+
+            <div className="flex items-center gap-2 mt-4 relative z-10">
+              <div className="flex items-center gap-1.5 bg-white/[0.08] rounded-full px-3 py-1.5">
+                <div className="w-2 h-2 rounded-full bg-[#8A9B80]" />
+                <span className="text-[11.5px] font-bold text-white/60">
+                  {language === 'EN' ? `${insights.transactionCount} transactions` : `${insights.transactionCount} लेन-देन`}
                 </span>
               </div>
             </div>
           </div>
         </motion.div>
 
-        {/* AI Insight Card */}
-        <motion.div variants={itemVariants} className="glass-card flex items-center justify-between p-5">
-          <div>
-            <p className="text-[13px] font-medium text-[#1A1A1A] opacity-80 mb-1">AI insight</p>
-            <h3 className="text-[15px] font-medium text-[#1A1A1A] leading-tight max-w-[200px]">
-              {language === 'EN'
-                ? `Net balance is ₹${Math.round(finalBalance).toLocaleString('en-IN')} from your latest entries.`
-                : `आपके नवीनतम रिकॉर्ड से शुद्ध बैलेंस ₹${Math.round(finalBalance).toLocaleString('en-IN')} है।`}
-            </h3>
+        {/* KPI Tiles */}
+        <motion.div variants={itemVariants} className="grid grid-cols-2 gap-3">
+          <div className="card-elevated p-4 rounded-[20px]">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-[#1A1A1A]/40">
+                {language === 'EN' ? 'Sales' : 'बिक्री'}
+              </p>
+              <div className="w-7 h-7 rounded-xl bg-[#EBF2E6] flex items-center justify-center">
+                <FiTrendingUp size={13} className="text-[#5c7255]" />
+              </div>
+            </div>
+            <p className="text-[24px] font-extrabold tracking-tight text-[#1A1A1A]">
+              ₹{Math.round(insights.totals.sales).toLocaleString('en-IN')}
+            </p>
+            <span className="badge badge-green mt-2">
+              <FiTrendingUp size={9} /> {language === 'EN' ? 'Credit' : 'क्रेडिट'}
+            </span>
           </div>
 
-          <button
-            onClick={() => setShowAnalytics(true)}
-            className="w-[52px] h-[52px] bg-[#161211] rounded-[20px] flex items-center justify-center flex-shrink-0 hover:scale-105 transition-all shadow-md"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F8F5F2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M7 17L17 7M17 7H7M17 7V17" />
-            </svg>
-          </button>
+          <div className="card-elevated p-4 rounded-[20px]">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-[#1A1A1A]/40">
+                {language === 'EN' ? 'Expenses' : 'खर्च'}
+              </p>
+              <div className="w-7 h-7 rounded-xl bg-[#F85F54]/10 flex items-center justify-center">
+                <FiTrendingDown size={13} className="text-[#c0392b]" />
+              </div>
+            </div>
+            <p className="text-[24px] font-extrabold tracking-tight text-[#1A1A1A]">
+              ₹{Math.round(insights.totals.expenses).toLocaleString('en-IN')}
+            </p>
+            <span className="badge badge-red mt-2">
+              <FiTrendingDown size={9} /> {language === 'EN' ? 'Debit' : 'डेबिट'}
+            </span>
+          </div>
+        </motion.div>
+
+        {/* AI Insight Card */}
+        <motion.div variants={itemVariants}>
+          <div className="glass-card p-5 rounded-[22px] flex items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                <div className="status-dot status-dot-active" />
+                <p className="text-[11px] font-bold uppercase tracking-widest text-[#1A1A1A]/40">
+                  {language === 'EN' ? 'AI Insight' : 'AI इनसाइट'}
+                </p>
+              </div>
+              <h3 className="text-[15px] font-bold text-[#1A1A1A] leading-snug">
+                {language === 'EN'
+                  ? `Net balance is ₹${Math.round(finalBalance).toLocaleString('en-IN')} from your latest entries.`
+                  : `आपके नवीनतम रिकॉर्ड से शुद्ध बैलेंस ₹${Math.round(finalBalance).toLocaleString('en-IN')} है।`}
+              </h3>
+            </div>
+            <button
+              onClick={() => setShowAnalytics(true)}
+              className="w-12 h-12 bg-[#1A1A1A] rounded-[18px] flex items-center justify-center flex-shrink-0 hover:scale-105 transition-transform shadow-md"
+            >
+              <FiArrowRight size={18} className="text-white -rotate-45" />
+            </button>
+          </div>
         </motion.div>
       </motion.div>
 
-      {/* Analytics Modal overlay */}
       {showAnalytics && (
         <AnalyticsModal
           onClose={() => setShowAnalytics(false)}
@@ -182,8 +212,6 @@ export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessId
           language={language}
         />
       )}
-
-      {/* Removed traditional bottom nav explicitly since this is an overlay */}
     </motion.div>
   )
 }
