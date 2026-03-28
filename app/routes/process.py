@@ -16,6 +16,7 @@ class ProcessResponse(BaseModel):
     data: Dict[str, Any]
 
 @router.post("/process")
+@router.post("/process-text")
 def process_text(request: ProcessRequest):
     """Use the transcript as LLM input and return structured JSON."""
     if not request.text:
