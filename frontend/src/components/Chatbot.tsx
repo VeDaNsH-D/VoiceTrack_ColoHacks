@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   askAssistant,
+  type ConversationResult,
   processTransactionText,
   sendConversationAudio,
   saveStructuredTransaction,
@@ -223,6 +224,68 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
     return `नोट कर लिया। खर्च एंट्री: ${expensePart}।`
   }, [language])
 
+  const formatPipelineSummary = React.useCallback((payload?: ConversationResult['pipeline_results']) => {
+    if (!payload?.has_context) {
+      return ''
+    }
+
+    const txCount = Number(payload.insights?.transaction_count || 0)
+    const sales = Number(payload.insights?.totals?.sales || 0)
+    const expenses = Number(payload.insights?.totals?.expenses || 0)
+    const topItem = (payload.insights?.top_items || [])[0]
+
+    const dashboardAvailable = Boolean(payload.dashboard?.available)
+    const dashboardRevenue = Number(payload.dashboard?.summary?.kpis?.revenue || 0)
+    const dashboardProfit = Number(payload.dashboard?.summary?.kpis?.profit || 0)
+    const nextDay = Number(payload.dashboard?.summary?.predictions?.nextDaySales || 0)
+
+    const heatmapAvailable = Boolean(payload.heatmap?.available)
+    const primaryAreaName = String(payload.heatmap?.primary_area?.name || payload.heatmap?.top_areas?.[0]?.name || '').trim()
+    const primaryAreaTx = Number(payload.heatmap?.primary_area?.transaction_count || 0)
+
+    const recentTx = (payload.transaction_history?.recent_transactions || []).slice(0, 2)
+
+    if (language === 'EN') {
+      const lines = [
+        `Pipeline Summary:`,
+        `Insights: ${txCount} transactions, sales \u20b9${Math.round(sales)}, expenses \u20b9${Math.round(expenses)}${topItem ? `, top item ${topItem}` : ''}.`,
+      ]
+
+      if (dashboardAvailable) {
+        lines.push(`Dashboard: revenue \u20b9${Math.round(dashboardRevenue)}, profit \u20b9${Math.round(dashboardProfit)}, next-day projection \u20b9${Math.round(nextDay)}.`)
+      }
+
+      if (heatmapAvailable) {
+        lines.push(`Heatmap: ${primaryAreaName || 'top hotspot'}${primaryAreaTx > 0 ? ` with ${primaryAreaTx} local transactions` : ''}.`)
+      }
+
+      if (recentTx.length) {
+        lines.push(`History sample: ${recentTx.join(' | ')}`)
+      }
+
+      return lines.join('\n')
+    }
+
+    const lines = [
+      `Pipeline Summary:`,
+      `Insights: ${txCount} ट्रांजैक्शन, सेल्स \u20b9${Math.round(sales)}, खर्च \u20b9${Math.round(expenses)}${topItem ? `, टॉप आइटम ${topItem}` : ''}.`,
+    ]
+
+    if (dashboardAvailable) {
+      lines.push(`Dashboard: revenue \u20b9${Math.round(dashboardRevenue)}, profit \u20b9${Math.round(dashboardProfit)}, अगले दिन का अनुमान \u20b9${Math.round(nextDay)}.`)
+    }
+
+    if (heatmapAvailable) {
+      lines.push(`Heatmap: ${primaryAreaName || 'top hotspot'}${primaryAreaTx > 0 ? ` में ${primaryAreaTx} लोकल ट्रांजैक्शन` : ''}.`)
+    }
+
+    if (recentTx.length) {
+      lines.push(`History sample: ${recentTx.join(' | ')}`)
+    }
+
+    return lines.join('\n')
+  }, [language])
+
   const runLedgerTextPipeline = React.useCallback(async (messageToSend: string) => {
     const processed = await processTransactionText({
       text: messageToSend,
@@ -397,6 +460,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
 
         const assistantReply = String(result.assistant?.reply || '').trim()
         const assistantAudioUrl = String(result.assistant?.audio_url || '').trim() || null
+        const pipelineSummary = formatPipelineSummary(result.pipeline_results)
 
         setMessages(prev => [
           ...prev,
@@ -409,10 +473,13 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
             id: Date.now() + 1,
             sender: 'ai',
             text:
-              assistantReply ||
-              (language === 'EN'
-                ? 'I processed your transaction, but could not generate a spoken response.'
-                : 'मैंने आपका ट्रांजैक्शन प्रोसेस कर लिया, लेकिन जवाब तैयार नहीं हो सका।'),
+              [
+                assistantReply ||
+                (language === 'EN'
+                  ? 'I processed your transaction, but could not generate a spoken response.'
+                  : 'मैंने आपका ट्रांजैक्शन प्रोसेस कर लिया, लेकिन जवाब तैयार नहीं हो सका।'),
+                pipelineSummary,
+              ].filter(Boolean).join('\n\n'),
             audioUrl: assistantAudioUrl,
           },
         ])

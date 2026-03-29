@@ -219,6 +219,50 @@ export interface ConversationResult {
     audio_url: string
     audio_needed: boolean
   }
+  pipeline_results?: {
+    insights?: {
+      transaction_count?: number
+      totals?: {
+        sales?: number
+        expenses?: number
+      }
+      top_items?: string[]
+    }
+    transaction_history?: {
+      recent_transactions?: string[]
+    }
+    dashboard?: {
+      available?: boolean
+      summary?: {
+        kpis?: {
+          revenue?: number
+          profit?: number
+          margin?: number
+        }
+        predictions?: {
+          nextDaySales?: number
+          confidence?: number
+        }
+        alerts?: {
+          high?: number
+          medium?: number
+          low?: number
+        }
+      }
+    }
+    heatmap?: {
+      available?: boolean
+      top_areas?: Array<{
+        name?: string
+        activity?: number
+      }>
+      primary_area?: {
+        name?: string
+        transaction_count?: number
+      }
+    }
+    has_context?: boolean
+  }
 }
 
 export interface VoiceNarrationTransaction {
@@ -232,7 +276,7 @@ export interface VoiceNarrationTransaction {
 }
 
 export interface VoiceNarrationResult {
-  status: 'recorded' | 'needs_confirmation'
+  status: 'recorded' | 'needs_confirmation' | 'agent_reply'
   rawTranscript: string
   normalizedTranscript: string
   transactions: VoiceNarrationTransaction[]
@@ -756,7 +800,72 @@ export async function processVoiceNarration(payload: {
     }
   )
 
-  return unwrapApiResponse<VoiceNarrationResult>(response.data)
+  const raw = unwrapApiResponse<any>(response.data)
+
+  const normalizedStatus = String(
+    raw?.status ||
+    (raw?.conversation_state?.clarification_pending ? 'needs_confirmation' : '')
+  ).trim() as VoiceNarrationResult['status']
+
+  const transactions = Array.isArray(raw?.transactions)
+    ? raw.transactions
+    : []
+
+  const responseMessage = String(
+    raw?.responseMessage ||
+    raw?.response_message ||
+    raw?.reply ||
+    raw?.text ||
+    raw?.assistant?.reply ||
+    raw?.assistantReply?.text ||
+    raw?.assistant_reply?.text ||
+    ''
+  ).trim()
+
+  const confirmationMessage = String(
+    raw?.confirmationMessage ||
+    raw?.confirmation_message ||
+    ''
+  ).trim()
+
+  const audioUrl = String(
+    raw?.audioUrl ||
+    raw?.audio_url ||
+    raw?.assistant?.audio_url ||
+    ''
+  ).trim() || null
+
+  const rawTranscript = String(
+    raw?.rawTranscript ||
+    raw?.raw_transcript ||
+    raw?.transcript ||
+    ''
+  ).trim()
+
+  const normalizedTranscript = String(
+    raw?.normalizedTranscript ||
+    raw?.normalized_transcript ||
+    raw?.normalizedText ||
+    raw?.normalized_text ||
+    rawTranscript
+  ).trim()
+
+  const derivedStatus: VoiceNarrationResult['status'] =
+    normalizedStatus ||
+    (confirmationMessage ? 'needs_confirmation' : (transactions.length ? 'recorded' : 'agent_reply'))
+
+  return {
+    status: derivedStatus,
+    rawTranscript,
+    normalizedTranscript,
+    transactions,
+    overallConfidence: Number(raw?.overallConfidence || raw?.overall_confidence || 0),
+    audioUrl: audioUrl ? resolveVoiceAudioUrl(audioUrl) : null,
+    confirmationMessage: confirmationMessage || undefined,
+    responseMessage: responseMessage || undefined,
+    actionButtons: Array.isArray(raw?.actionButtons) ? raw.actionButtons : undefined,
+    recordId: raw?.recordId ? String(raw.recordId) : undefined,
+  }
 }
 
 export async function undoLastVoiceTransaction(payload: {

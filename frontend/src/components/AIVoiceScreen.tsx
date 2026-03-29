@@ -44,6 +44,10 @@ function getStageText(stage: VoiceStage, language: 'EN' | 'HI') {
 }
 
 function buildResultSummary(result: VoiceNarrationResult, language: 'EN' | 'HI') {
+  if (!result.transactions.length && result.responseMessage) {
+    return result.responseMessage
+  }
+
   if (!result.transactions.length) {
     return language === 'EN' ? 'No transactions detected.' : 'कोई ट्रांजैक्शन नहीं मिला।'
   }
@@ -53,6 +57,36 @@ function buildResultSummary(result: VoiceNarrationResult, language: 'EN' | 'HI')
   })
   lines.push('', language === 'EN' ? `Total: ${result.transactions.length} entries` : `कुल: ${result.transactions.length} एंट्री`)
   return lines.join('\n')
+}
+
+function getAssistantReplyText(result: VoiceNarrationResult | null, language: 'EN' | 'HI') {
+  if (!result) {
+    return ''
+  }
+
+  const fromResponse = String(result.responseMessage || '').trim()
+  if (fromResponse) {
+    return fromResponse
+  }
+
+  const fromConfirmation = String(result.confirmationMessage || '').trim()
+  if (fromConfirmation) {
+    return fromConfirmation
+  }
+
+  if (result.status === 'agent_reply') {
+    return language === 'EN'
+      ? 'I processed your question and generated a voice reply.'
+      : 'मैंने आपके प्रश्न को प्रोसेस करके वॉयस जवाब तैयार किया।'
+  }
+
+  if (!result.transactions.length && result.audioUrl) {
+    return language === 'EN'
+      ? 'Voice reply received. If detailed text is missing, backend did not return a text field for this response.'
+      : 'वॉइस जवाब मिला। यदि विस्तृत टेक्स्ट नहीं दिख रहा है, तो इस जवाब में बैकएंड ने टेक्स्ट फ़ील्ड नहीं भेजी।'
+  }
+
+  return ''
 }
 
 export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, onToggleSidebar, language }) => {
@@ -78,6 +112,7 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
   const audioContextRef = React.useRef<AudioContext | null>(null)
   const audioRef = React.useRef<HTMLAudioElement | null>(null)
   const autoStopTimerRef = React.useRef<number | null>(null)
+  const assistantReplyText = getAssistantReplyText(result, language)
 
   React.useEffect(() => {
     return () => {
@@ -354,12 +389,125 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
                 )}
               </motion.button>
             </div>
+<<<<<<< HEAD
             <p className="text-[12px] text-white/40 font-semibold tracking-wide">
               {isListening
                 ? (language === 'EN' ? 'Tap to stop' : 'रोकने के लिए टैप करें')
                 : isBusy
                   ? (language === 'EN' ? 'Please wait…' : 'कृपया प्रतीक्षा करें…')
                   : (language === 'EN' ? 'Tap to start recording' : 'रिकॉर्डिंग शुरू करने के लिए टैप करें')}
+=======
+          </div>
+
+          <div className="mt-4 grid md:grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-white/60 border border-white/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-[#1A1A1A]/55 font-semibold mb-1">
+                Live Transcript
+              </p>
+              <p className="text-sm text-[#1A1A1A]/80 min-h-[56px]">
+                {liveTranscript || (language === 'EN' ? 'Start speaking to see live text...' : 'लाइव टेक्स्ट देखने के लिए बोलना शुरू करें...')}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-white/60 border border-white/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-[#1A1A1A]/55 font-semibold mb-1">
+                Raw Transcript
+              </p>
+              <p className="text-sm text-[#1A1A1A]/80 min-h-[56px]">
+                {rawTranscript || (language === 'EN' ? 'Recorded transcript appears here.' : 'रिकॉर्डेड ट्रांसक्रिप्ट यहां दिखेगा।')}
+              </p>
+            </div>
+          </div>
+
+          {!!normalizedTranscript && (
+            <div className="mt-3 rounded-2xl bg-[#FAF7F2] border border-[#E7DED3] p-4">
+              <p className="text-xs uppercase tracking-wide text-[#1A1A1A]/55 font-semibold mb-1">Normalized Transcript</p>
+              <p className="text-sm text-[#1A1A1A]/80">{normalizedTranscript}</p>
+            </div>
+          )}
+
+          {!!resultSummary && (
+            <div className="mt-3 rounded-2xl bg-[#141111] border border-white/10 p-4 text-[#F9F3EA] whitespace-pre-line text-sm">
+              {resultSummary}
+            </div>
+          )}
+
+          {!!assistantReplyText && (
+            <div className="mt-3 rounded-2xl bg-[#EEF5FF] border border-[#C8DAF8] p-4">
+              <p className="text-xs uppercase tracking-wide text-[#1B3D75]/75 font-semibold mb-1">
+                {language === 'EN' ? 'Assistant Reply' : 'असिस्टेंट जवाब'}
+              </p>
+              <p className="text-sm text-[#0F2750] whitespace-pre-line">
+                {assistantReplyText}
+              </p>
+            </div>
+          )}
+
+          {!!audioUrl && (
+            <div className="mt-3 rounded-2xl bg-white/70 border border-white/70 p-3">
+              <p className="text-xs uppercase tracking-wide text-[#1A1A1A]/55 font-semibold mb-2">Speech Output</p>
+              <audio src={audioUrl} controls className="w-full" />
+            </div>
+          )}
+
+          {result?.status === 'needs_confirmation' && (
+            <div className="mt-3 rounded-2xl bg-[#FFF6E8] border border-[#F3D8A4] p-4">
+              <p className="text-sm text-[#6A4A10] font-medium">
+                {result.confirmationMessage || (language === 'EN' ? 'I may have misunderstood. Please confirm.' : 'शायद मैं गलत समझा। कृपया पुष्टि करें।')}
+              </p>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  onClick={() => void handleConfirmAll()}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#1D8B57] text-white text-sm"
+                >
+                  <FiCheck /> Confirm All
+                </button>
+                <button
+                  onClick={() => setIsEditMode(true)}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#0F172A] text-white text-sm"
+                >
+                  <FiEdit2 /> Edit
+                </button>
+                <button
+                  onClick={handleCancel}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#D64545] text-white text-sm"
+                >
+                  <FiX /> Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isEditMode && (
+            <div className="mt-3 rounded-2xl bg-white/75 border border-white/70 p-4">
+              <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Edit Narration</p>
+              <textarea
+                value={editableTranscript}
+                onChange={(event) => setEditableTranscript(event.target.value)}
+                className="w-full min-h-[96px] rounded-lg border border-[#D6CDC1] px-3 py-2 text-sm bg-white"
+              />
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => void handleEditSubmit()}
+                  className="px-3 py-2 rounded-lg bg-[#1D8B57] text-white text-sm"
+                >
+                  Re-parse
+                </button>
+                <button
+                  onClick={() => setIsEditMode(false)}
+                  className="px-3 py-2 rounded-lg bg-[#111827] text-white text-sm"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!!error && (
+            <p className="mt-3 text-sm font-semibold text-[#C0392B]">
+              {error}
+>>>>>>> 7caa224 (voice bot fixes)
             </p>
           </div>
         </div>
