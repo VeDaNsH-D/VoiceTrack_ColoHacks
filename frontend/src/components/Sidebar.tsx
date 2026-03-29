@@ -13,6 +13,7 @@ import {
   FiX,
   FiChevronsLeft,
   FiChevronsRight,
+  FiUser,
 } from 'react-icons/fi'
 
 interface SidebarProps {
@@ -43,6 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { view: 'insights', label: language === 'EN' ? 'AI Insights' : 'AI इनसाइट्स', icon: <FiZap size={18} /> },
     { view: 'localMap', label: language === 'EN' ? 'Demand Intelligence Map' : 'डिमांड इंटेलिजेंस मैप', icon: <FiMap size={18} /> },
     { view: 'history', label: language === 'EN' ? 'Ledger History' : 'लेजर इतिहास', icon: <FiClock size={18} /> },
+    { view: 'profile', label: language === 'EN' ? 'Profile' : 'प्रोफ़ाइल', icon: <FiUser size={18} /> },
   ]
 
   const DesktopSidebarContent = (
@@ -70,8 +72,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClose()
             }}
             className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'gap-3 px-3.5'} py-3 rounded-xl text-left transition-all ${currentView === item.view
-                ? 'bg-[#0f172a] text-white shadow-sm'
-                : 'text-[#334155] hover:bg-[#e2e8f0]'
+              ? 'bg-[#0f172a] text-white shadow-sm'
+              : 'text-[#334155] hover:bg-[#e2e8f0]'
               }`}
             title={item.label}
           >
@@ -132,8 +134,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClose()
             }}
             className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-left transition-all ${currentView === item.view
-                ? 'bg-[#0f172a] text-white shadow-sm'
-                : 'text-[#334155] hover:bg-[#e2e8f0]'
+              ? 'bg-[#0f172a] text-white shadow-sm'
+              : 'text-[#334155] hover:bg-[#e2e8f0]'
               }`}
           >
             <span className={currentView === item.view ? 'text-[#93c5fd]' : 'text-[#475569]'}>{item.icon}</span>

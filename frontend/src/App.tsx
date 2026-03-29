@@ -7,13 +7,14 @@ import { DashboardMain } from './components/DashboardMain'
 import { AIInsightsPage } from './components/AIInsightsPage'
 import { AIVoiceScreen } from './components/AIVoiceScreen'
 import { Chatbot } from './components/Chatbot'
+import { Profile } from './components/Profile'
 import { Sidebar } from './components/Sidebar'
 import { LocalDemandMapDashboard } from './components/LocalDemandMapDashboard.jsx'
 import { setAuthToken } from './services/api'
 import './App.css'
 import './index.css'
 
-export type ViewState = 'landing' | 'auth' | 'voice' | 'dashboard' | 'insights' | 'localMap' | 'history' | 'chat'
+export type ViewState = 'landing' | 'auth' | 'voice' | 'dashboard' | 'insights' | 'localMap' | 'history' | 'chat' | 'profile'
 
 export interface AuthSession {
   userId: string
@@ -231,6 +232,25 @@ export function App() {
               className="h-full min-h-0 overflow-hidden relative"
             >
               <Chatbot userId={session?.userId || ''} onToggleSidebar={toggleSidebar} language={language} />
+            </motion.div>
+          )}
+
+          {currentView === 'profile' && (
+            <motion.div
+              key="profile"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-full min-h-0 overflow-hidden relative"
+            >
+              <Profile
+                userId={session?.userId || ''}
+                userName={userName}
+                language={language}
+                onLogout={() => handleNavigate('landing')}
+                onLanguageChange={toggleLanguage}
+                onToggleSidebar={toggleSidebar}
+              />
             </motion.div>
           )}
         </AnimatePresence>

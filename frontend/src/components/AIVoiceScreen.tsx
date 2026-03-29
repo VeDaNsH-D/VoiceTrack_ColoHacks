@@ -454,14 +454,6 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
                 )}
               </motion.button>
             </div>
-<<<<<<< HEAD
-            <p className="text-[12px] text-white/40 font-semibold tracking-wide">
-              {isListening
-                ? (language === 'EN' ? 'Tap to stop' : 'रोकने के लिए टैप करें')
-                : isBusy
-                  ? (language === 'EN' ? 'Please wait…' : 'कृपया प्रतीक्षा करें…')
-                  : (language === 'EN' ? 'Tap to start recording' : 'रिकॉर्डिंग शुरू करने के लिए टैप करें')}
-=======
           </div>
 
           <div className="mt-4 grid md:grid-cols-2 gap-3">
@@ -572,9 +564,8 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
           {!!error && (
             <p className="mt-3 text-sm font-semibold text-[#C0392B]">
               {error}
->>>>>>> 7caa224 (voice bot fixes)
             </p>
-          </div>
+          )}
         </div>
 
         {/* Transcript Cards */}
