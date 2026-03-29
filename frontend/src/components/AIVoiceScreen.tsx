@@ -138,7 +138,7 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
     audioRef.current?.pause()
     const audio = new Audio(cleanUrl)
     audioRef.current = audio
-    void audio.play().catch(() => {})
+    void audio.play().catch(() => { })
   }, [])
 
   const beginLiveRecognition = React.useCallback(() => {
@@ -153,7 +153,7 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
       for (let i = event.resultIndex; i < event.results.length; i++) interim += event.results[i][0].transcript
       setLiveTranscript(interim.trim())
     }
-    recognition.onerror = () => {}
+    recognition.onerror = () => { }
     recognition.onend = () => { if (isListening) recognition.start() }
     recognition.start()
     recognitionRef.current = recognition
@@ -267,68 +267,109 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
   }
 
   const isBusy = stage === 'processing' || stage === 'understanding'
+  const todayLabel = new Date().toLocaleDateString(language === 'HI' ? 'hi-IN' : 'en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+
+  const quickTemplates = language === 'EN'
+    ? [
+      'Sold 5 kg onion for 260 cash and 2 oil packets for 340 UPI',
+      'Bought tomatoes 10 kg for 420 and paid by cash',
+      'Customer Ramesh paid pending 1500 by UPI',
+    ]
+    : [
+      '5 किलो प्याज 260 कैश में बेचा और 2 तेल पैकेट 340 UPI में बेचे',
+      'टमाटर 10 किलो 420 में खरीदे और कैश से भुगतान किया',
+      'ग्राहक रमेश ने बकाया 1500 UPI से चुकाया',
+    ]
+
+  const parsedCount = result?.transactions.length || 0
+  const parsedAmount = result?.transactions.reduce((sum, tx) => sum + Number(tx.total || 0), 0) || 0
+  const contextHint = isListening
+    ? (language === 'EN' ? 'Listening live. Mention item, quantity, amount, and payment mode.' : 'लाइव सुन रहा हूँ। आइटम, मात्रा, राशि और भुगतान मोड बोलें।')
+    : isBusy
+      ? (language === 'EN' ? 'Parsing narration and extracting entries from your context.' : 'नैरेशन को पार्स करके कॉन्टेक्स्ट के साथ एंट्री निकाल रहा हूँ।')
+      : result?.status === 'needs_confirmation'
+        ? (language === 'EN' ? 'Review detected entries and confirm or edit for accuracy.' : 'पहचानी गई एंट्री की पुष्टि करें या सटीकता के लिए संपादित करें।')
+        : (language === 'EN' ? 'Use Quick Templates for faster logging or tap mic to narrate naturally.' : 'तेज लॉगिंग के लिए क्विक टेम्पलेट्स उपयोग करें या माइक से बोलें।')
+
+  const handleQuickTemplate = async (template: string) => {
+    if (isBusy) return
+    setLiveTranscript(template)
+    setRawTranscript(template)
+    setEditableTranscript(template)
+    await submitVoice(undefined, template, false)
+  }
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="h-screen bg-app-gradient flex flex-col overflow-hidden"
+      className="h-full bg-[#f1f5f9] flex flex-col relative overflow-hidden"
     >
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-20 left-[8%] h-64 w-64 rounded-full bg-blue-400/20 blur-3xl" />
+        <div className="absolute top-12 right-[10%] h-72 w-72 rounded-full bg-emerald-300/20 blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 h-56 w-80 rounded-full bg-slate-400/15 blur-3xl" />
+      </div>
+
       {/* ── Top Bar ──────────────────────────────────── */}
-      <div className="flex items-center justify-between px-5 pt-10 pb-3 flex-shrink-0">
+      <div className="relative z-10 flex items-center justify-between px-5 pt-8 pb-3 flex-shrink-0 max-w-6xl w-full mx-auto">
         <button
           onClick={onToggleSidebar}
-          className="w-11 h-11 rounded-full glass-card flex items-center justify-center shadow-sm"
+          className="md:hidden w-10 h-10 rounded-xl border border-slate-900/10 bg-slate-900 text-white flex items-center justify-center shadow-sm"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
+        <div className="hidden md:block w-10" />
 
-        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/50 border border-white/70 shadow-sm">
-          <div className="w-5 h-5 text-[#1A1A1A]">
-            <svg viewBox="0 0 100 100" fill="none">
-              <path d="M20 20 H50 V60 C50 71 41 80 30 80 C24.47 80 20 75.53 20 70 V20 Z" fill="currentColor" />
-              <path d="M50 45 C66.56 45 80 58.44 80 75 C80 91.56 66.56 100 50 100 V45 Z" fill="currentColor" />
-            </svg>
-          </div>
-          <span className="text-[12px] font-bold text-[#1A1A1A]/60 tracking-wide uppercase">
+        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-slate-900/10 shadow-sm">
+          <span className="text-[11px] font-bold text-slate-700/80 tracking-[0.2em] uppercase">
             {language === 'EN' ? 'Voice Ledger' : 'वॉयस लेजर'}
           </span>
         </div>
 
-        <button
-          onClick={() => void handleUndoLast()}
-          className="w-11 h-11 rounded-full glass-card flex items-center justify-center shadow-sm"
-          title="Undo last"
-        >
-          <FiRotateCcw size={16} className="text-[#1A1A1A]/70" />
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="text-[11px] font-semibold text-slate-600 bg-white/80 border border-slate-900/10 rounded-full px-3 py-1">
+            {todayLabel}
+          </div>
+          <button
+            onClick={() => void handleUndoLast()}
+            className="w-10 h-10 rounded-xl border border-slate-900/10 bg-white/80 flex items-center justify-center shadow-sm"
+            title="Undo last"
+          >
+            <FiRotateCcw size={16} className="text-slate-700" />
+          </button>
+        </div>
       </div>
 
       {/* ── Scrollable Content ────────────────────────── */}
-      <div className="flex-1 overflow-y-auto scrollbar-hide px-5 pb-10 space-y-4">
+      <div className="relative z-10 flex-1 min-h-0 overflow-y-auto scrollbar-hide px-5 pb-10 space-y-4 max-w-6xl w-full mx-auto">
 
         {/* Greeting Card */}
-        <div className="glass-card p-5">
-          <h2 className="text-[22px] font-extrabold tracking-tight text-[#1A1A1A] leading-tight">
+        <div className="bg-white/82 backdrop-blur-md p-5 rounded-[22px] border border-slate-900/10 shadow-[0_10px_26px_-18px_rgba(15,23,42,0.45)]">
+          <h2 className="text-[30px] font-light tracking-[-0.03em] text-slate-900 leading-tight">
             {language === 'EN' ? `Hi, ${userName || 'there'} 👋` : `नमस्ते, ${userName || 'दोस्त'} 👋`}
           </h2>
-          <p className="text-[13.5px] text-[#1A1A1A]/50 font-medium mt-1 leading-relaxed">
+          <p className="text-[14px] text-slate-600 font-medium mt-1 leading-relaxed">
             {language === 'EN'
               ? "Speak naturally for up to 3 minutes. I'll extract all entries."
               : '3 मिनट तक सामान्य रूप से बोलें। मैं सभी एंट्री निकाल दूँगा।'}
           </p>
 
           <div className="flex items-center gap-2 mt-3">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/70 border border-white/70">
-              <div className={`status-dot ${isBusy ? 'status-dot-processing' : isListening ? 'status-dot-active' : 'bg-[#1A1A1A]/20'}`} />
-              <span className="text-[11.5px] font-bold text-[#1A1A1A]/60">{getStageText(stage, language)}</span>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/80 border border-slate-900/10">
+              <div className={`status-dot ${isBusy ? 'status-dot-processing' : isListening ? 'status-dot-active' : 'bg-slate-400'}`} />
+              <span className="text-[11.5px] font-bold text-slate-600">{getStageText(stage, language)}</span>
             </div>
             {result && (
-              <div className="px-3 py-1.5 rounded-full bg-[#8A9B80]/12 border border-[#8A9B80]/20">
-                <span className="text-[11.5px] font-bold text-[#5c7255]">
+              <div className="px-3 py-1.5 rounded-full bg-emerald-100 border border-emerald-200">
+                <span className="text-[11.5px] font-bold text-emerald-700">
                   {`${(result.overallConfidence * 100).toFixed(0)}% confidence`}
                 </span>
               </div>
@@ -336,8 +377,33 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
           </div>
         </div>
 
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <div className="lg:col-span-2 bg-white/82 backdrop-blur-md p-4 rounded-[20px] border border-slate-900/10 shadow-[0_10px_26px_-18px_rgba(15,23,42,0.45)]">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 mb-2">
+              {language === 'EN' ? 'Context Assistant' : 'कॉन्टेक्स्ट असिस्टेंट'}
+            </p>
+            <p className="text-[14px] text-slate-800 font-medium leading-relaxed">{contextHint}</p>
+          </div>
+
+          <div className="bg-slate-900 p-4 rounded-[20px] border border-slate-800 shadow-[0_10px_26px_-18px_rgba(15,23,42,0.6)]">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-300 mb-2">
+              {language === 'EN' ? 'Session Snapshot' : 'सेशन स्नैपशॉट'}
+            </p>
+            <p className="text-white text-[26px] font-semibold leading-none">{parsedCount}</p>
+            <p className="text-slate-300 text-[12px] mt-1">
+              {language === 'EN' ? 'entries parsed' : 'एंट्री पार्स हुई'}
+            </p>
+            <p className="text-blue-300 text-[14px] font-semibold mt-3">
+              ₹{Math.round(parsedAmount).toLocaleString('en-IN')}
+            </p>
+            <p className="text-slate-300 text-[12px]">
+              {language === 'EN' ? 'detected amount in this run' : 'इस रन में पहचानी गई राशि'}
+            </p>
+          </div>
+        </div>
+
         {/* Waveform + Mic Panel */}
-        <div className="card-dark p-5 rounded-[24px]">
+        <div className="bg-slate-900 p-5 rounded-[24px] border border-slate-800 shadow-[0_20px_50px_-24px_rgba(15,23,42,0.75)]">
           {/* Waveform */}
           <div className="h-[72px] flex items-end gap-[3px] mb-6">
             {waveform.map((bar, idx) => (
@@ -346,7 +412,7 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
                   key={idx}
                   animate={{ height: `${Math.max(6, Math.round(bar * 64))}px` }}
                   transition={{ duration: 0.1 }}
-                  className="flex-1 rounded-full bg-gradient-to-t from-[#F85F54] via-[#F9A26A] to-[#FDE3AE]"
+                  className="flex-1 rounded-full bg-gradient-to-t from-[#0066ff] via-[#3b82f6] to-[#93c5fd]"
                 />
               ) : (
                 <div
@@ -376,9 +442,8 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
                 whileHover={isBusy ? {} : { scale: 1.05 }}
                 onClick={isListening ? () => void stopListening() : () => void startListening()}
                 disabled={isBusy}
-                className={`relative w-[88px] h-[88px] rounded-full flex items-center justify-center shadow-2xl transition-colors ${
-                  isBusy ? 'bg-white/10 cursor-not-allowed' : isListening ? 'bg-[#F85F54]' : 'bg-[#F85F54]'
-                }`}
+                className={`relative w-[88px] h-[88px] rounded-full flex items-center justify-center shadow-2xl transition-colors ${isBusy ? 'bg-white/10 cursor-not-allowed' : isListening ? 'bg-[#0066ff]' : 'bg-[#0066ff]'
+                  }`}
               >
                 {isBusy ? (
                   <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -513,32 +578,51 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
         </div>
 
         {/* Transcript Cards */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="glass-card p-4 rounded-[18px]">
-            <p className="text-[10.5px] font-bold uppercase tracking-widest text-[#1A1A1A]/40 mb-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="bg-white/82 backdrop-blur-md p-4 rounded-[18px] border border-slate-900/10 shadow-[0_10px_26px_-18px_rgba(15,23,42,0.45)]">
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-slate-500 mb-2">
               {language === 'EN' ? 'Live' : 'लाइव'}
             </p>
-            <p className="text-[13px] text-[#1A1A1A]/80 font-medium leading-relaxed min-h-[44px]">
+            <p className="text-[13px] text-slate-800 font-medium leading-relaxed min-h-[44px]">
               {liveTranscript || (language === 'EN' ? 'Start speaking…' : 'बोलना शुरू करें…')}
             </p>
           </div>
-          <div className="glass-card p-4 rounded-[18px]">
-            <p className="text-[10.5px] font-bold uppercase tracking-widest text-[#1A1A1A]/40 mb-2">
+          <div className="bg-white/82 backdrop-blur-md p-4 rounded-[18px] border border-slate-900/10 shadow-[0_10px_26px_-18px_rgba(15,23,42,0.45)]">
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-slate-500 mb-2">
               {language === 'EN' ? 'Recorded' : 'रिकॉर्डड'}
             </p>
-            <p className="text-[13px] text-[#1A1A1A]/80 font-medium leading-relaxed min-h-[44px]">
+            <p className="text-[13px] text-slate-800 font-medium leading-relaxed min-h-[44px]">
               {rawTranscript || (language === 'EN' ? 'Transcript appears here.' : 'ट्रांसक्रिप्ट यहाँ दिखेगा।')}
             </p>
           </div>
         </div>
 
+        <div className="bg-white/82 backdrop-blur-md p-4 rounded-[18px] border border-slate-900/10 shadow-[0_10px_26px_-18px_rgba(15,23,42,0.45)]">
+          <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-slate-500 mb-3">
+            {language === 'EN' ? 'Quick Templates' : 'क्विक टेम्पलेट्स'}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {quickTemplates.map(template => (
+              <button
+                key={template}
+                onClick={() => void handleQuickTemplate(template)}
+                type="button"
+                disabled={isBusy}
+                className="px-3 py-2 rounded-xl text-[12px] font-semibold bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+              >
+                {template}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Normalized transcript */}
         {!!normalizedTranscript && (
-          <div className="glass-card p-4 rounded-[18px]">
-            <p className="text-[10.5px] font-bold uppercase tracking-widest text-[#1A1A1A]/40 mb-1.5">
+          <div className="bg-white/82 backdrop-blur-md p-4 rounded-[18px] border border-slate-900/10 shadow-[0_10px_26px_-18px_rgba(15,23,42,0.45)]">
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-slate-500 mb-1.5">
               {language === 'EN' ? 'Normalized' : 'नॉर्मलाइज़्ड'}
             </p>
-            <p className="text-[13px] text-[#1A1A1A]/80 font-medium leading-relaxed">{normalizedTranscript}</p>
+            <p className="text-[13px] text-slate-800 font-medium leading-relaxed">{normalizedTranscript}</p>
           </div>
         )}
 
@@ -551,8 +635,8 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
 
         {/* Audio playback */}
         {!!audioUrl && (
-          <div className="glass-card p-4 rounded-[18px]">
-            <p className="text-[10.5px] font-bold uppercase tracking-widest text-[#1A1A1A]/40 mb-2">
+          <div className="bg-white/82 backdrop-blur-md p-4 rounded-[18px] border border-slate-900/10 shadow-[0_10px_26px_-18px_rgba(15,23,42,0.45)]">
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-slate-500 mb-2">
               {language === 'EN' ? 'AI Response' : 'AI प्रतिक्रिया'}
             </p>
             <audio src={audioUrl} controls className="w-full" style={{ height: 36 }} />
@@ -581,8 +665,8 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
 
         {/* Edit mode */}
         {isEditMode && (
-          <div className="glass-card p-5 rounded-[20px]">
-            <p className="text-[13px] font-bold text-[#1A1A1A] mb-3">{language === 'EN' ? 'Edit Narration' : 'नैरेशन संपादित करें'}</p>
+          <div className="bg-white/82 backdrop-blur-md p-5 rounded-[20px] border border-slate-900/10 shadow-[0_10px_26px_-18px_rgba(15,23,42,0.45)]">
+            <p className="text-[13px] font-bold text-slate-900 mb-3">{language === 'EN' ? 'Edit Narration' : 'नैरेशन संपादित करें'}</p>
             <textarea
               value={editableTranscript}
               onChange={e => setEditableTranscript(e.target.value)}

@@ -65,8 +65,8 @@ export const AIInsightsPage: React.FC<AIInsightsPageProps> = ({
   }, [businessId, userId])
 
   const loadInsights = React.useCallback(async () => {
-    if (!userId || !resolvedBusinessId) {
-      setError('Missing user or business context.')
+    if (!userId) {
+      setError('Missing user context.')
       return
     }
 
@@ -74,27 +74,41 @@ export const AIInsightsPage: React.FC<AIInsightsPageProps> = ({
       setLoading(true)
       setError(null)
 
-      const [dashboard, nextDay, margins, anomalies, suggestions, global, coach] = await Promise.all([
-        getAnalyticsDashboard({ userId, businessId: resolvedBusinessId }),
-        getNextDayDemand({ userId, businessId: resolvedBusinessId }),
-        getProfitMargins({ userId, businessId: resolvedBusinessId }),
-        getAnomalyAlerts({ userId, businessId: resolvedBusinessId }),
-        getCrossSellSuggestions({ userId, businessId: resolvedBusinessId }),
+      const analyticsParams = {
+        userId,
+        ...(resolvedBusinessId ? { businessId: resolvedBusinessId } : {}),
+      }
+
+      const [dashboard, nextDay, margins, anomalies, suggestions, global, coach] = await Promise.allSettled([
+        getAnalyticsDashboard(analyticsParams),
+        getNextDayDemand(analyticsParams),
+        getProfitMargins(analyticsParams),
+        getAnomalyAlerts(analyticsParams),
+        getCrossSellSuggestions(analyticsParams),
         getGlobalIntelligence({ userId }),
-        getCoachProactiveSuggestions({ userId, businessId: resolvedBusinessId }),
+        getCoachProactiveSuggestions(analyticsParams),
       ])
 
-      const profile = await getDemandModelProfile({ userId, businessId: resolvedBusinessId }).catch(() => null)
+      const profile = await getDemandModelProfile(analyticsParams).catch(() => null)
       setModelProfile(profile)
 
+      const settledValues = [dashboard, nextDay, margins, anomalies, suggestions, global, coach]
+      const hasAtLeastOneSuccess = settledValues.some(entry => entry.status === 'fulfilled')
+
+      if (!hasAtLeastOneSuccess) {
+        setError('Unable to load AI insights right now.')
+        setData(null)
+        return
+      }
+
       setData({
-        dashboard,
-        nextDay,
-        margins,
-        anomalies,
-        suggestions,
-        global,
-        coach,
+        dashboard: dashboard.status === 'fulfilled' ? dashboard.value : null,
+        nextDay: nextDay.status === 'fulfilled' ? nextDay.value : null,
+        margins: margins.status === 'fulfilled' ? margins.value : null,
+        anomalies: anomalies.status === 'fulfilled' ? anomalies.value : null,
+        suggestions: suggestions.status === 'fulfilled' ? suggestions.value : [],
+        global: global.status === 'fulfilled' ? global.value : null,
+        coach: coach.status === 'fulfilled' ? coach.value : [],
       })
     } catch {
       setError('Unable to load AI insights right now.')
@@ -108,8 +122,13 @@ export const AIInsightsPage: React.FC<AIInsightsPageProps> = ({
   }, [loadInsights])
 
   const handleTrainModel = React.useCallback(async () => {
-    if (!userId || !resolvedBusinessId) {
-      setTrainError('Missing user or business context.')
+    if (!userId) {
+      setTrainError('Missing user context.')
+      return
+    }
+
+    if (!resolvedBusinessId) {
+      setTrainError('Missing business context. Please complete signup/login again.')
       return
     }
 
@@ -139,16 +158,16 @@ export const AIInsightsPage: React.FC<AIInsightsPageProps> = ({
 
   const nextDaySales = Number(
     data?.nextDay?.predictedSales ||
-      data?.nextDay?.data?.predictedSales ||
-      data?.dashboard?.demandForecast?.nextDay?.predictedSales ||
-      0
+    data?.nextDay?.data?.predictedSales ||
+    data?.dashboard?.demandForecast?.nextDay?.predictedSales ||
+    0
   )
 
   const predictionConfidence = Number(
     data?.nextDay?.confidence ||
-      data?.nextDay?.data?.confidence ||
-      data?.dashboard?.demandForecast?.nextDay?.confidence ||
-      0
+    data?.nextDay?.data?.confidence ||
+    data?.dashboard?.demandForecast?.nextDay?.confidence ||
+    0
   )
 
   const modelDiagnostics = modelProfile || null
@@ -176,148 +195,126 @@ export const AIInsightsPage: React.FC<AIInsightsPageProps> = ({
   const crossSell = data?.suggestions || []
   const globalSuggestions = data?.global?.vendorsLikeYou || []
   const coachTips = data?.coach || []
+  const topCoachTips = coachTips.slice(0, 3)
+  const topCrossSell = crossSell.slice(0, 3)
+  const topGlobal = globalSuggestions.slice(0, 3)
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="h-screen bg-app-gradient flex flex-col"
+      className="h-full min-h-0 bg-[#f4f7fa] flex flex-col"
     >
-      <div className="flex-1 overflow-y-auto scrollbar-hide px-5 py-10 pb-32">
-        <div className="mb-6 flex items-center justify-between mt-4">
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-5 py-6 pb-16 max-w-4xl w-full mx-auto">
+        <div className="mb-4 flex items-center justify-between">
           <button
             onClick={onToggleSidebar}
-            className="w-11 h-11 rounded-full glass-card flex items-center justify-center shadow-sm"
+            className="md:hidden w-10 h-10 rounded-xl border border-slate-900/10 bg-slate-900 text-white flex items-center justify-center shadow-sm"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <div className="text-[12px] font-bold uppercase tracking-widest text-[#1A1A1A]/40">
+          <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-600">
             {language === 'EN' ? 'AI Insights' : 'AI इनसाइट्स'}
           </div>
-          <div className="w-11" />
+          <div className="w-10" />
         </div>
 
-        <div className="mb-6">
-          <h1 className="text-[28px] font-extrabold tracking-tight text-[#1A1A1A]">
+        <div className="mb-4">
+          <h1 className="text-[32px] font-light tracking-[-0.03em] text-slate-900">
             {language === 'EN' ? `Smart Predictions` : 'स्मार्ट प्रेडिक्शन'}
           </h1>
-          <p className="text-[13.5px] text-[#1A1A1A]/50 font-medium mt-1">
+          <p className="text-[14px] text-slate-600 font-medium mt-1">
             {language === 'EN' ? `For ${userName || 'your business'}.` : `${userName || 'आपके बिजनेस'} के लिए।`}
           </p>
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-3 flex items-center gap-3 flex-wrap">
             <button
               onClick={() => void handleTrainModel()}
               disabled={training || loading}
-              className="btn-primary !text-[13px] !py-2.5 !px-5 !rounded-2xl disabled:opacity-50"
+              className="px-4 py-2.5 rounded-xl bg-slate-900 text-white text-[13px] font-semibold disabled:opacity-50"
             >
               {training ? 'Training…' : 'Train Model'}
             </button>
             {trainResult?.trained && (
-              <p className="text-xs text-[#1A1A1A]/70">
+              <p className="text-xs text-slate-600">
                 Trained on {Number(trainResult.trainingRows || 0)} rows, confidence {Math.round(Number(trainResult.confidence || 0) * 100)}%.
               </p>
             )}
             {trainResult && !trainResult.trained && (
-              <p className="text-xs text-[#C44536]">{trainResult.reason || 'Training could not be completed.'}</p>
+              <p className="text-xs text-rose-700">{trainResult.reason || 'Training could not be completed.'}</p>
             )}
           </div>
-          {trainError && <p className="text-xs text-[#C44536] mt-2">{trainError}</p>}
+          {trainError && <p className="text-xs text-rose-700 mt-2">{trainError}</p>}
         </div>
 
-        {loading && <div className="glass-card rounded-2xl p-4 text-sm text-[#1A1A1A]/70">Loading predictions...</div>}
-        {error && <div className="glass-card rounded-2xl p-4 text-sm text-[#C44536]">{error}</div>}
+        {loading && <div className="bg-white border border-slate-200 rounded-2xl p-4 text-sm text-slate-600">Loading predictions...</div>}
+        {error && <div className="bg-white border border-rose-200 rounded-2xl p-4 text-sm text-rose-700">{error}</div>}
 
         {!loading && !error && (
-          <div className="space-y-4">
-            <section className="glass-card rounded-2xl p-5">
-              <p className="text-xs uppercase tracking-wider text-[#1A1A1A]/60 mb-2">Next-Day Sales Prediction</p>
-              <p className="text-4xl font-bold text-[#1A1A1A]">₹{Math.round(nextDaySales).toLocaleString('en-IN')}</p>
-              <p className="text-sm text-[#1A1A1A]/70 mt-2">Confidence: {Math.round(predictionConfidence * 100)}%</p>
+          <div className="space-y-3 pb-2">
+            <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 mb-1">Next Day Sales</p>
+                <p className="text-2xl font-semibold text-slate-900">₹{Math.round(nextDaySales).toLocaleString('en-IN')}</p>
+              </div>
+              <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 mb-1">Confidence</p>
+                <p className="text-2xl font-semibold text-slate-900">{Math.round(predictionConfidence * 100)}%</p>
+              </div>
+              <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500 mb-1">Active Alerts</p>
+                <p className="text-2xl font-semibold text-slate-900">{activeAlerts.length}</p>
+              </div>
             </section>
 
-            <section className="glass-card rounded-2xl p-5">
-              <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Model Diagnostics</p>
-              <div className="text-sm text-[#1A1A1A]/80 space-y-1">
+            <section className="bg-white rounded-2xl border border-slate-200 p-4">
+              <p className="text-sm font-semibold text-slate-900 mb-2">Model Summary</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm text-slate-700">
                 <p>Model: {modelDiagnostics?.modelName || 'hybrid_kmeans_rule'}</p>
                 <p>Last trained: {diagnosticsTrainedAt}</p>
-                <p>Training rows: {diagnosticsRows}</p>
+                <p>Rows: {diagnosticsRows}</p>
                 <p>Clusters: {diagnosticsClusters}</p>
-                <p>Model confidence: {Math.round(diagnosticsConfidence * 100)}%</p>
-                <p>Volatility score: {diagnosticsVolatility.toFixed(3)}</p>
-                <p>
-                  Confidence contributors: regression {Math.round(Number(blendWeights.regression || 0) * 100)}%, cluster {Math.round(Number(blendWeights.cluster || 0) * 100)}%, movingAvg {Math.round(Number(blendWeights.movingAvg || 0) * 100)}%
-                </p>
+                <p>Confidence: {Math.round(diagnosticsConfidence * 100)}%</p>
+                <p>Volatility: {diagnosticsVolatility.toFixed(3)}</p>
               </div>
+              <p className="text-xs text-slate-500 mt-2">
+                Blend: regression {Math.round(Number(blendWeights.regression || 0) * 100)}%, cluster {Math.round(Number(blendWeights.cluster || 0) * 100)}%, movingAvg {Math.round(Number(blendWeights.movingAvg || 0) * 100)}%
+              </p>
             </section>
 
-            <section className="glass-card rounded-2xl p-5">
-              <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Item-wise Forecast</p>
-              <div className="text-sm text-[#1A1A1A]/80 space-y-1">
-                {topForecastItems.length === 0 && <p>No item forecast yet.</p>}
-                {topForecastItems.map((item: any, index: number) => (
-                  <p key={`${item.itemName}-${index}`}>
-                    {item.itemName}: {Math.round(item.predictedQty || 0)} units
-                  </p>
-                ))}
+            <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                <p className="text-sm font-semibold text-slate-900 mb-2">Demand & Inventory</p>
+                <div className="text-sm text-slate-700 space-y-1">
+                  {topForecastItems.length === 0 && <p>No forecast yet.</p>}
+                  {topForecastItems.map((item: any, index: number) => (
+                    <p key={`${item.itemName}-${index}`}>{item.itemName}: {Math.round(item.predictedQty || 0)} units</p>
+                  ))}
+                  {inventoryRecommendations.slice(0, 3).map((item: any, index: number) => (
+                    <p key={`inv-${item.itemName || index}`}>Stock {item.itemName}: {Math.round(item.suggestedStockQty || 0)}</p>
+                  ))}
+                  {inventoryAlerts.length > 0 && <p className="text-rose-700">Alerts: {inventoryAlerts.map((a: any) => a.itemName).join(', ')}</p>}
+                </div>
               </div>
-            </section>
 
-            <section className="glass-card rounded-2xl p-5">
-              <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Inventory Recommendations</p>
-              <div className="text-sm text-[#1A1A1A]/80 space-y-1">
-                {inventoryRecommendations.length === 0 && <p>No inventory recommendations yet.</p>}
-                {inventoryRecommendations.slice(0, 5).map((item: any, index: number) => (
-                  <p key={`inv-${item.itemName || index}`}>
-                    {item.itemName}: stock {Math.round(item.suggestedStockQty || 0)} units (predicted {Math.round(item.predictedQty || 0)})
-                  </p>
-                ))}
-                {inventoryAlerts.length > 0 && (
-                  <p className="pt-1 text-[#C44536]">Alerts: {inventoryAlerts.map((a: any) => a.itemName).join(', ')}</p>
-                )}
-              </div>
-            </section>
-
-            <section className="glass-card rounded-2xl p-5">
-              <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Profit Signals</p>
-              <p className="text-sm text-[#1A1A1A]/80">High-margin items: {highMarginItems.length}</p>
-              <p className="text-sm text-[#1A1A1A]/80">Low-margin items: {lowMarginItems.length}</p>
-            </section>
-
-            <section className="glass-card rounded-2xl p-5">
-              <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Anomaly Alerts</p>
-              <p className="text-sm text-[#1A1A1A]/80">Active alerts: {activeAlerts.length}</p>
-            </section>
-
-            <section className="glass-card rounded-2xl p-5">
-              <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Cross-sell Suggestions</p>
-              <div className="text-sm text-[#1A1A1A]/80 space-y-1">
-                {crossSell.length === 0 && <p>No suggestions yet.</p>}
-                {crossSell.slice(0, 3).map((row: any, index: number) => (
-                  <p key={`cross-${index}`}>{Array.isArray(row.combo) ? row.combo.join(' + ') : row.reason || 'Suggestion'}</p>
-                ))}
-              </div>
-            </section>
-
-            <section className="glass-card rounded-2xl p-5">
-              <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Global Intelligence</p>
-              <div className="text-sm text-[#1A1A1A]/80 space-y-1">
-                {globalSuggestions.length === 0 && <p>No vendors-like-you suggestions yet.</p>}
-                {globalSuggestions.slice(0, 3).map((item: any, index: number) => (
-                  <p key={`global-${index}`}>{item.item}: {item.reason}</p>
-                ))}
-              </div>
-            </section>
-
-            <section className="glass-card rounded-2xl p-5">
-              <p className="text-sm font-semibold text-[#1A1A1A] mb-2">AI Business Coach</p>
-              <div className="text-sm text-[#1A1A1A]/80 space-y-1">
-                {coachTips.length === 0 && <p>No proactive suggestions yet.</p>}
-                {coachTips.slice(0, 3).map((tip: any, index: number) => (
-                  <p key={`coach-${index}`}>{tip.title || 'Tip'}: {tip.message || ''}</p>
-                ))}
+              <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                <p className="text-sm font-semibold text-slate-900 mb-2">Growth Suggestions</p>
+                <div className="text-sm text-slate-700 space-y-1">
+                  <p>High-margin items: {highMarginItems.length}</p>
+                  <p>Low-margin items: {lowMarginItems.length}</p>
+                  {topCrossSell.length === 0 && topGlobal.length === 0 && topCoachTips.length === 0 && <p>No suggestions yet.</p>}
+                  {topCrossSell.map((row: any, index: number) => (
+                    <p key={`cross-${index}`}>{Array.isArray(row.combo) ? row.combo.join(' + ') : row.reason || 'Cross-sell suggestion'}</p>
+                  ))}
+                  {topGlobal.map((item: any, index: number) => (
+                    <p key={`global-${index}`}>{item.item}: {item.reason}</p>
+                  ))}
+                  {topCoachTips.map((tip: any, index: number) => (
+                    <p key={`coach-${index}`}>{tip.title || 'Tip'}: {tip.message || ''}</p>
+                  ))}
+                </div>
               </div>
             </section>
           </div>

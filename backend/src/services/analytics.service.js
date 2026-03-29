@@ -51,17 +51,51 @@ function buildComboSuggestions(itemPairCounter) {
     });
 }
 
-async function getInsightsSummary(userId = null) {
+function normalizeId(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.trim();
+}
+
+async function getInsightsSummary(scope = null) {
   const allTransactions = await listTransactions();
-  const normalizedUserId = typeof userId === "string" ? userId.trim() : "";
-  const transactions = normalizedUserId
-    ? allTransactions.filter((transaction) => {
-        const entryUserId = transaction.userId
-          ? String(transaction.userId._id || transaction.userId)
-          : "";
+  const normalizedUserId = normalizeId(
+    typeof scope === "string" ? scope : scope?.userId
+  );
+  const normalizedBusinessId = normalizeId(
+    typeof scope === "string" ? "" : scope?.businessId
+  );
+
+  const resolveEntryIds = (transaction) => ({
+    entryUserId: transaction.userId
+      ? String(transaction.userId._id || transaction.userId)
+      : "",
+    entryBusinessId: transaction.businessId
+      ? String(transaction.businessId._id || transaction.businessId)
+      : "",
+  });
+
+  let transactions = allTransactions;
+  if (normalizedBusinessId) {
+    transactions = allTransactions.filter((transaction) => {
+      const { entryBusinessId } = resolveEntryIds(transaction);
+      return entryBusinessId === normalizedBusinessId;
+    });
+
+    // Backward compatibility: older entries may not have businessId populated.
+    if (!transactions.length && normalizedUserId) {
+      transactions = allTransactions.filter((transaction) => {
+        const { entryUserId } = resolveEntryIds(transaction);
         return entryUserId === normalizedUserId;
-      })
-    : allTransactions;
+      });
+    }
+  } else if (normalizedUserId) {
+    transactions = allTransactions.filter((transaction) => {
+      const { entryUserId } = resolveEntryIds(transaction);
+      return entryUserId === normalizedUserId;
+    });
+  }
 
   const dailyLedgerMap = new Map();
   const itemStatsMap = new Map();

@@ -331,15 +331,11 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
     appendAssistantMessage(reply, audioUrl)
   }, [appendAssistantMessage, language, summarizeLedgerTextResult, userId])
 
-  const handleSend = async () => {
-    if (!inputText.trim()) return
+  const sendTextMessage = React.useCallback(async (messageToSend: string) => {
+    if (!messageToSend.trim()) return
     if (isSending || isRecording || isAudioProcessing) return
 
-    // Add user message
-    const newMessages: ChatMessage[] = [...messages, { id: Date.now(), sender: 'user', text: inputText }]
-    setMessages(newMessages)
-    const messageToSend = inputText
-    setInputText('')
+    setMessages(prev => [...prev, { id: Date.now(), sender: 'user', text: messageToSend }])
     setIsSending(true)
 
     try {
@@ -353,6 +349,13 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
     } finally {
       setIsSending(false)
     }
+  }, [appendErrorReply, chatMode, fetchAssistantReply, isAudioProcessing, isRecording, isSending, runLedgerTextPipeline])
+
+  const handleSend = async () => {
+    if (!inputText.trim()) return
+    const messageToSend = inputText
+    setInputText('')
+    await sendTextMessage(messageToSend)
   }
 
   const startVoiceInput = async () => {
@@ -526,51 +529,48 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="h-screen bg-app-gradient flex flex-col relative overflow-hidden"
+      className="h-full bg-[#f4f7fa] flex flex-col relative overflow-hidden"
     >
       {/* Top Header */}
-      <div className="flex items-center justify-center px-6 pt-12 pb-4 relative z-20">
+      <div className="flex items-center justify-center px-5 pt-8 pb-4 relative z-20 max-w-6xl w-full mx-auto">
         <button
           onClick={onToggleSidebar}
-          className="absolute left-6 w-12 h-12 bg-white/40 rounded-full flex items-center justify-center hover:bg-white/80 transition-colors shadow-sm"
+          className="absolute left-5 md:hidden w-10 h-10 rounded-xl border border-slate-900/10 bg-slate-900 text-white flex items-center justify-center shadow-sm"
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="3" y1="12" x2="21" y2="12"></line>
             <line x1="3" y1="6" x2="21" y2="6"></line>
             <line x1="3" y1="18" x2="21" y2="18"></line>
           </svg>
         </button>
-        <div className="flex bg-[#EFEBE4] px-4 py-1.5 rounded-full items-center gap-2 shadow-sm border border-white/40">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A9B80" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-          </svg>
-          <span className="text-[13px] font-bold text-[#1A1A1A] tracking-wide uppercase">
-            {language === 'EN' ? 'Assistant' : 'सहायक'}
+        <div className="flex bg-white px-4 py-2 rounded-full items-center gap-2 border border-slate-200">
+          <span className="text-[11px] font-bold text-slate-700 tracking-[0.2em] uppercase">
+            {language === 'EN' ? 'Context Chatbot' : 'कॉन्टेक्स्ट चैटबॉट'}
           </span>
         </div>
       </div>
 
       {/* Chat Area */}
-      <div className="px-6 pt-2 z-20 w-full max-w-2xl mx-auto">
-        <div className="glass-card rounded-full p-1.5 flex gap-1.5 border border-white/60 shadow-sm">
+      <div className="px-5 pt-1 z-20 w-full max-w-3xl mx-auto">
+        <div className="bg-white rounded-full p-1.5 flex gap-1.5 border border-slate-200">
           <button
             onClick={() => setChatMode('insights')}
             disabled={isSending || isRecording || isAudioProcessing}
-            className={`flex-1 rounded-full py-2 px-3 text-sm font-semibold transition-colors ${chatMode === 'insights' ? 'bg-[#1A1A1A] text-[#F8F5F2]' : 'bg-transparent text-[#1A1A1A]/70 hover:bg-white/50'}`}
+            className={`flex-1 rounded-full py-2 px-3 text-sm font-semibold transition-colors ${chatMode === 'insights' ? 'bg-slate-900 text-white' : 'bg-transparent text-slate-600 hover:bg-slate-100'}`}
           >
             {language === 'EN' ? 'Insights' : 'इनसाइट्स'}
           </button>
           <button
             onClick={() => setChatMode('ledger')}
             disabled={isSending || isRecording || isAudioProcessing}
-            className={`flex-1 rounded-full py-2 px-3 text-sm font-semibold transition-colors ${chatMode === 'ledger' ? 'bg-[#1A1A1A] text-[#F8F5F2]' : 'bg-transparent text-[#1A1A1A]/70 hover:bg-white/50'}`}
+            className={`flex-1 rounded-full py-2 px-3 text-sm font-semibold transition-colors ${chatMode === 'ledger' ? 'bg-slate-900 text-white' : 'bg-transparent text-slate-600 hover:bg-slate-100'}`}
           >
             {language === 'EN' ? 'Ledger Transaction' : 'लेजर ट्रांजैक्शन'}
           </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-6 pb-32 flex flex-col gap-6 z-10 w-full max-w-2xl mx-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 pb-36 flex flex-col gap-4 z-10 w-full max-w-3xl mx-auto">
         {messages.map((msg) => (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -579,12 +579,12 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
             className={`flex w-full ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {msg.sender === 'ai' && (
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#8A9B80] to-[#E6DFD7] flex-shrink-0 mr-3 shadow-md border border-white/50" />
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#0066ff] to-[#93c5fd] flex-shrink-0 mr-3 border border-white/50" />
             )}
 
-            <div className={`max-w-[75%] p-4 rounded-3xl text-[15px] font-medium leading-relaxed tracking-wide shadow-sm ${msg.sender === 'user'
-              ? 'bg-[#1A1A1A] text-[#F8F5F2] rounded-tr-sm'
-              : 'glass-card rounded-tl-sm text-[#1A1A1A]'
+            <div className={`max-w-[82%] p-4 rounded-3xl text-[15px] font-medium leading-relaxed tracking-wide ${msg.sender === 'user'
+              ? 'bg-slate-900 text-white rounded-tr-sm'
+              : 'bg-white border border-slate-200 rounded-tl-sm text-slate-900'
               }`}>
               {msg.text}
               {msg.sender === 'ai' && msg.audioUrl && (
@@ -600,14 +600,14 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
             animate={{ opacity: 1, y: 0 }}
             className="flex w-full justify-start"
           >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#8A9B80] to-[#E6DFD7] flex-shrink-0 mr-3 shadow-md border border-white/50" />
-            <div className="glass-card rounded-3xl rounded-tl-sm text-[#1A1A1A] max-w-[75%] px-4 py-3 shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#0066ff] to-[#93c5fd] flex-shrink-0 mr-3 border border-white/50" />
+            <div className="bg-white border border-slate-200 rounded-3xl rounded-tl-sm text-slate-900 max-w-[82%] px-4 py-3">
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 bg-[#8A9B80] rounded-full animate-bounce [animation-delay:-0.2s]" />
-                <span className="w-2 h-2 bg-[#8A9B80] rounded-full animate-bounce [animation-delay:-0.1s]" />
-                <span className="w-2 h-2 bg-[#8A9B80] rounded-full animate-bounce" />
+                <span className="w-2 h-2 bg-[#0066ff] rounded-full animate-bounce [animation-delay:-0.2s]" />
+                <span className="w-2 h-2 bg-[#0066ff] rounded-full animate-bounce [animation-delay:-0.1s]" />
+                <span className="w-2 h-2 bg-[#0066ff] rounded-full animate-bounce" />
               </div>
-              <p className="text-xs mt-2 text-[#1A1A1A]/60">
+              <p className="text-xs mt-2 text-slate-600">
                 {isAudioProcessing
                   ? (language === 'EN'
                     ? (chatMode === 'insights' ? 'Processing your question audio...' : 'Processing ledger audio...')
@@ -622,21 +622,23 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
       </div>
 
       {/* Bottom Input Area */}
-      <div className="absolute bottom-0 w-full bg-gradient-to-t from-[#EAE6DF] via-[#EAE6DF]/90 to-transparent pt-12 pb-8 px-6 z-30">
-        <div className="max-w-2xl mx-auto w-full glass-card rounded-full p-2 flex items-center shadow-lg border border-white/60">
+      <div className="absolute bottom-0 w-full bg-gradient-to-t from-[#f4f7fa] via-[#f4f7fa]/95 to-transparent pt-8 pb-5 px-5 z-30">
+        <div className="max-w-3xl mx-auto w-full bg-white rounded-full p-2 flex items-center border border-slate-200 shadow-sm">
           <input
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder={language === 'EN' ? "Ask about your business..." : "अपने व्यवसाय के बारे में पूछें..."}
+            placeholder={chatMode === 'insights'
+              ? (language === 'EN' ? 'Ask about sales, trends, inventory...' : 'बिक्री, रुझान, इन्वेंटरी के बारे में पूछें...')
+              : (language === 'EN' ? 'Narrate a sale or expense entry...' : 'बिक्री या खर्च एंट्री बोलें...')}
             disabled={isSending || isRecording || isAudioProcessing}
-            className="flex-1 bg-transparent border-none outline-none px-4 text-[#1A1A1A] font-medium placeholder:text-[#1A1A1A]/40"
+            className="flex-1 bg-transparent border-none outline-none px-4 text-slate-900 font-medium placeholder:text-slate-400"
           />
           <button
             onClick={isRecording ? () => void stopVoiceInput() : () => void startVoiceInput()}
             disabled={isSending || isAudioProcessing}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-transform flex-shrink-0 shadow-md mr-2 disabled:opacity-60 ${isRecording ? 'bg-[#F85F54] animate-pulse' : 'bg-[#8A9B80] hover:scale-105'}`}
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-transform flex-shrink-0 shadow-md mr-2 disabled:opacity-60 ${isRecording ? 'bg-[#0066ff] animate-pulse' : 'bg-[#0066ff] hover:scale-105'}`}
           >
             {isAudioProcessing ? (
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -656,9 +658,9 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
           <button
             onClick={handleSend}
             disabled={isSending || isRecording || isAudioProcessing}
-            className="w-12 h-12 bg-[#1A1A1A] rounded-full flex items-center justify-center hover:scale-105 transition-transform flex-shrink-0 shadow-md disabled:opacity-60"
+            className="w-12 h-12 bg-slate-900 rounded-full flex items-center justify-center hover:scale-105 transition-transform flex-shrink-0 shadow-md disabled:opacity-60"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F8F5F2" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="22" y1="2" x2="11" y2="13"></line>
               <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
             </svg>

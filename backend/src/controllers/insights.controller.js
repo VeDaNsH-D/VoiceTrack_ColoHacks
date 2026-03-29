@@ -3,7 +3,8 @@ const analyticsService = require("../services/analytics.service");
 async function getInsights(req, res, next) {
   try {
     const userId = typeof req.query?.userId === "string" ? req.query.userId : null;
-    const result = await analyticsService.getInsightsSummary(userId);
+    const businessId = typeof req.query?.businessId === "string" ? req.query.businessId : null;
+    const result = await analyticsService.getInsightsSummary({ userId, businessId });
     res.status(200).json(result);
   } catch (error) {
     next(error);
@@ -13,7 +14,8 @@ async function getInsights(req, res, next) {
 async function getSuggestions(req, res, next) {
   try {
     const userId = typeof req.query?.userId === "string" ? req.query.userId : null;
-    const result = await analyticsService.getInsightsSummary(userId);
+    const businessId = typeof req.query?.businessId === "string" ? req.query.businessId : null;
+    const result = await analyticsService.getInsightsSummary({ userId, businessId });
     res.status(200).json({
       suggestions: result.suggestions,
       combos: result.combos,
@@ -27,7 +29,8 @@ async function getSuggestions(req, res, next) {
 async function getForecast(req, res, next) {
   try {
     const userId = typeof req.query?.userId === "string" ? req.query.userId : null;
-    const result = await analyticsService.getInsightsSummary(userId);
+    const businessId = typeof req.query?.businessId === "string" ? req.query.businessId : null;
+    const result = await analyticsService.getInsightsSummary({ userId, businessId });
     res.status(200).json({
       forecast: result.forecast,
       inventory: result.inventory,
@@ -41,7 +44,8 @@ async function getForecast(req, res, next) {
 async function getAnomalies(req, res, next) {
   try {
     const userId = typeof req.query?.userId === "string" ? req.query.userId : null;
-    const result = await analyticsService.getInsightsSummary(userId);
+    const businessId = typeof req.query?.businessId === "string" ? req.query.businessId : null;
+    const result = await analyticsService.getInsightsSummary({ userId, businessId });
     res.status(200).json({
       anomalies: result.anomalies,
       lowConfidenceCount: result.lowConfidenceCount,

@@ -184,73 +184,108 @@ async function processText(req, res, next) {
 
 async function listHistory(req, res, next) {
   try {
-    const { userId, startDate, endDate } = req.query || {};
+    const { userId, businessId, startDate, endDate } = req.query || {};
     const parsedLimit = Number(req.query?.limit || 50);
     const limit = Number.isFinite(parsedLimit)
       ? Math.min(Math.max(parsedLimit, 1), 200)
       : 50;
 
     const allTransactions = await listTransactions();
-    const scope = await resolveBusinessScope(typeof userId === "string" ? userId : "");
+    const resolved = await resolveUserAndBusinessIds(
+      typeof userId === "string" ? userId : "",
+      typeof businessId === "string" ? businessId : ""
+    );
+    const scopedUserId = resolved?.userId ? String(resolved.userId) : "";
+    const scopedBusinessId = resolved?.businessId ? String(resolved.businessId) : "";
     const start = startDate ? new Date(startDate) : null;
     const end = endDate ? new Date(endDate) : null;
 
-    const filtered = allTransactions
-      .filter((entry) => {
+    const matchesDateRange = (entry) => {
+      const createdAt = new Date(entry.createdAt || entry.updatedAt || Date.now());
+
+      if (start && !Number.isNaN(start.getTime()) && createdAt < start) {
+        return false;
+      }
+
+      if (end && !Number.isNaN(end.getTime()) && createdAt > end) {
+        return false;
+      }
+
+      return true;
+    };
+
+    const toHistoryEntry = (entry) => ({
+      id: String(entry._id || entry.id || ""),
+      createdAt: entry.createdAt,
+      rawText: entry.rawText,
+      normalizedText: entry.normalizedText,
+      sales: entry.sales || [],
+      expenses: entry.expenses || [],
+      totals: entry.totals || {
+        salesAmount: (entry.sales || []).reduce(
+          (sum, sale) => sum + Number(sale.qty || 0) * Number(sale.price || 0),
+          0
+        ),
+        expenseAmount: (entry.expenses || []).reduce(
+          (sum, expense) => sum + Number(expense.amount || 0),
+          0
+        ),
+        netAmount: 0,
+      },
+      meta: entry.meta || null,
+    });
+
+    const sortByRecent = (left, right) =>
+      new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime();
+
+    let scopedEntries = allTransactions.filter((entry) => {
+      const entryBusinessId = entry.businessId
+        ? String(entry.businessId._id || entry.businessId)
+        : "";
+
+      if (!scopedBusinessId) {
+        return false;
+      }
+
+      return entryBusinessId === scopedBusinessId && matchesDateRange(entry);
+    });
+
+    if (!scopedBusinessId && !scopedUserId) {
+      scopedEntries = allTransactions.filter(matchesDateRange);
+    }
+
+    if (!scopedEntries.length && scopedUserId) {
+      scopedEntries = allTransactions.filter((entry) => {
         const entryUserId = entry.userId
           ? String(entry.userId._id || entry.userId)
           : "";
-        const entryBusinessId = entry.businessId
-          ? String(entry.businessId._id || entry.businessId)
+
+        if (!entryUserId) {
+          return false;
+        }
+
+        return entryUserId === scopedUserId && matchesDateRange(entry);
+      });
+    }
+
+    if (!scopedBusinessId && scopedUserId && !scopedEntries.length) {
+      scopedEntries = allTransactions.filter((entry) => {
+        const entryUserId = entry.userId
+          ? String(entry.userId._id || entry.userId)
           : "";
 
-        if (scope.businessId) {
-          if (entryBusinessId !== scope.businessId) {
-            return false;
-          }
-        } else if (scope.filterByUser && scope.userId) {
-          if (entryUserId !== scope.userId) {
-            return false;
-          }
-        }
-
-        const createdAt = new Date(entry.createdAt || entry.updatedAt || Date.now());
-
-        if (start && !Number.isNaN(start.getTime()) && createdAt < start) {
+        if (!entryUserId) {
           return false;
         }
 
-        if (end && !Number.isNaN(end.getTime()) && createdAt > end) {
-          return false;
-        }
+        return entryUserId === scopedUserId && matchesDateRange(entry);
+      });
+    }
 
-        return true;
-      })
-      .sort(
-        (a, b) =>
-          new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-      )
+    const filtered = scopedEntries
+      .sort(sortByRecent)
       .slice(0, limit)
-      .map((entry) => ({
-        id: String(entry._id || entry.id || ""),
-        createdAt: entry.createdAt,
-        rawText: entry.rawText,
-        normalizedText: entry.normalizedText,
-        sales: entry.sales || [],
-        expenses: entry.expenses || [],
-        totals: entry.totals || {
-          salesAmount: (entry.sales || []).reduce(
-            (sum, sale) => sum + Number(sale.qty || 0) * Number(sale.price || 0),
-            0
-          ),
-          expenseAmount: (entry.expenses || []).reduce(
-            (sum, expense) => sum + Number(expense.amount || 0),
-            0
-          ),
-          netAmount: 0,
-        },
-        meta: entry.meta || null,
-      }))
+      .map(toHistoryEntry)
       .map((entry) => ({
         ...entry,
         totals: {

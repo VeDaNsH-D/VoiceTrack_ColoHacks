@@ -128,8 +128,45 @@ export interface InsightsResult {
   totals: {
     sales: number
     expenses: number
+    profit?: number
   }
   transactionCount: number
+  lowConfidenceCount?: number
+  topSellingItems?: Array<{
+    item: string
+    quantity: number
+    revenue: number
+    occurrences: number
+  }>
+  lowPerformingItems?: Array<{
+    item: string
+    quantity: number
+    revenue: number
+    occurrences: number
+  }>
+  forecast?: {
+    nextDaySales: number
+    nextDayProfit: number
+    trend: 'up' | 'down' | 'flat'
+  }
+  anomalies?: {
+    suddenSalesDrop: boolean
+    unusualExpense: boolean
+    missingData: boolean
+    performanceDeviation: boolean
+  }
+  insightCards?: Array<{
+    type: string
+    title: string
+    message: string
+  }>
+  dailyLedger?: Array<{
+    date: string
+    sales: number
+    expenses: number
+    profit: number
+    transactionCount: number
+  }>
 }
 
 export interface AssistantResult {
@@ -390,6 +427,7 @@ export async function saveStructuredTransaction(payload: {
 
 export async function getTransactionHistory(params: {
   userId?: string
+  businessId?: string
   startDate?: string
   endDate?: string
   limit?: number
@@ -400,9 +438,9 @@ export async function getTransactionHistory(params: {
   return unwrapApiResponse<HistoryResult>(response.data)
 }
 
-export async function getInsights(userId?: string): Promise<InsightsResult> {
+export async function getInsights(params: { userId?: string; businessId?: string } = {}): Promise<InsightsResult> {
   const response = await apiClient.get<ApiEnvelope<InsightsResult> | InsightsResult>('/api/insights', {
-    params: userId ? { userId } : undefined,
+    params,
   })
   return unwrapApiResponse<InsightsResult>(response.data)
 }

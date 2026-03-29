@@ -46,8 +46,9 @@ export function App() {
     }
     return restored
   })
-  const [currentView, setCurrentView] = useState<ViewState>(() => (getSavedSession() ? 'voice' : 'landing'))
+  const [currentView, setCurrentView] = useState<ViewState>(() => (getSavedSession() ? 'dashboard' : 'landing'))
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false)
   const [language, setLanguage] = useState<'EN' | 'HI'>('EN')
   const [userName, setUserName] = useState<string>(() => getSavedSession()?.name || '')
 
@@ -67,6 +68,10 @@ export function App() {
     setIsSidebarOpen(!isSidebarOpen)
   }
 
+  const toggleSidebarCollapsed = () => {
+    setIsSidebarCollapsed(prev => !prev)
+  }
+
   const toggleLanguage = () => {
     setLanguage(prev => prev === 'EN' ? 'HI' : 'EN')
   }
@@ -76,7 +81,7 @@ export function App() {
     setUserName(authSession.name)
     setAuthToken(authSession.token)
     localStorage.setItem('voicetrack.session', JSON.stringify(authSession))
-    setCurrentView('voice')
+    setCurrentView('dashboard')
   }
 
   const handleDemo = () => {
@@ -90,133 +95,146 @@ export function App() {
       businessCode: 'DEMO',
       businessId: 'DEMO',
     })
-    setCurrentView('voice')
+    setCurrentView('dashboard')
   }
+
+  const isAppView = currentView !== 'landing' && currentView !== 'auth'
 
   return (
     <div className="h-screen bg-app-gradient flex flex-col overflow-hidden">
 
       {/* Global Sidebar Component */}
-      <Sidebar
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-        onNavigate={handleNavigate}
-        currentView={currentView}
-        language={language}
-        toggleLanguage={toggleLanguage}
-      />
+      {isAppView && (
+        <Sidebar
+          isOpen={isSidebarOpen}
+          isCollapsed={isSidebarCollapsed}
+          onClose={() => setIsSidebarOpen(false)}
+          onToggleCollapsed={toggleSidebarCollapsed}
+          onNavigate={handleNavigate}
+          currentView={currentView}
+          language={language}
+          toggleLanguage={toggleLanguage}
+        />
+      )}
 
-      <AnimatePresence mode="wait">
-        {currentView === 'landing' && (
-          <motion.div
-            key="landing"
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="flex-1 overflow-y-auto"
-          >
-            <Landing
-              onGetStarted={() => setCurrentView('auth')}
-              onDemo={handleDemo}
-              language={language}
-            />
-          </motion.div>
-        )}
+      <div className={`flex-1 min-h-0 ${isAppView ? (isSidebarCollapsed ? 'md:pl-24' : 'md:pl-72') : ''}`}>
+        <AnimatePresence mode="wait">
+          {currentView === 'landing' && (
+            <motion.div
+              key="landing"
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="h-full min-h-0 overflow-y-auto"
+            >
+              <Landing
+                onGetStarted={() => setCurrentView('auth')}
+                onDemo={handleDemo}
+                language={language}
+              />
+            </motion.div>
+          )}
 
-        {currentView === 'auth' && (
-          <motion.div
-            key="auth"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="flex-1 overflow-y-auto"
-          >
-            <Auth onLogin={handleLogin} onBack={() => setCurrentView('landing')} language={language} />
-          </motion.div>
-        )}
+          {currentView === 'auth' && (
+            <motion.div
+              key="auth"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="h-full min-h-0 overflow-y-auto"
+            >
+              <Auth onLogin={handleLogin} onBack={() => setCurrentView('landing')} language={language} />
+            </motion.div>
+          )}
 
-        {currentView === 'dashboard' && (
-          <motion.div
-            key="dashboard"
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex-1 overflow-y-auto"
-          >
-            <DashboardMain
-              userId={session?.userId || ''}
-              businessId={session?.businessId || ''}
-              userName={userName}
-              onToggleSidebar={toggleSidebar}
-              language={language}
-            />
-          </motion.div>
-        )}
+          {currentView === 'dashboard' && (
+            <motion.div
+              key="dashboard"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-full min-h-0 overflow-hidden"
+            >
+              <DashboardMain
+                userId={session?.userId || ''}
+                businessId={session?.businessId || ''}
+                userName={userName}
+                onRecordToday={() => setCurrentView('voice')}
+                language={language}
+              />
+            </motion.div>
+          )}
 
-        {currentView === 'insights' && (
-          <motion.div
-            key="insights"
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex-1 overflow-y-auto"
-          >
-            <AIInsightsPage
-              userId={session?.userId || ''}
-              businessId={session?.businessId || ''}
-              userName={userName}
-              onToggleSidebar={toggleSidebar}
-              language={language}
-            />
-          </motion.div>
-        )}
+          {currentView === 'insights' && (
+            <motion.div
+              key="insights"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-full min-h-0 overflow-hidden"
+            >
+              <AIInsightsPage
+                userId={session?.userId || ''}
+                businessId={session?.businessId || ''}
+                userName={userName}
+                onToggleSidebar={toggleSidebar}
+                language={language}
+              />
+            </motion.div>
+          )}
 
-        {currentView === 'localMap' && (
-          <motion.div
-            key="localMap"
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex-1 overflow-hidden"
-          >
-            <LocalDemandMapDashboard />
-          </motion.div>
-        )}
+          {currentView === 'localMap' && (
+            <motion.div
+              key="localMap"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-full min-h-0 overflow-hidden"
+            >
+              <LocalDemandMapDashboard />
+            </motion.div>
+          )}
 
-        {currentView === 'voice' && (
-          <motion.div
-            key="voice"
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex-1 overflow-hidden h-full relative"
-          >
-            <AIVoiceScreen userId={session?.userId || ''} userName={userName} onToggleSidebar={toggleSidebar} language={language} />
-          </motion.div>
-        )}
+          {currentView === 'voice' && (
+            <motion.div
+              key="voice"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-full min-h-0 overflow-hidden relative"
+            >
+              <AIVoiceScreen userId={session?.userId || ''} userName={userName} onToggleSidebar={toggleSidebar} language={language} />
+            </motion.div>
+          )}
 
-        {currentView === 'history' && (
-          <motion.div
-            key="history"
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex-1 overflow-hidden h-full relative"
-          >
-            <HistoryLedger userId={session?.userId || ''} onToggleSidebar={toggleSidebar} language={language} />
-          </motion.div>
-        )}
+          {currentView === 'history' && (
+            <motion.div
+              key="history"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-full min-h-0 overflow-hidden relative"
+            >
+              <HistoryLedger
+                userId={session?.userId || ''}
+                businessId={session?.businessId || ''}
+                onToggleSidebar={toggleSidebar}
+                language={language}
+              />
+            </motion.div>
+          )}
 
-        {currentView === 'chat' && (
-          <motion.div
-            key="chat"
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex-1 overflow-hidden h-full relative"
-          >
-            <Chatbot userId={session?.userId || ''} onToggleSidebar={toggleSidebar} language={language} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+          {currentView === 'chat' && (
+            <motion.div
+              key="chat"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-full min-h-0 overflow-hidden relative"
+            >
+              <Chatbot userId={session?.userId || ''} onToggleSidebar={toggleSidebar} language={language} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   )
 }
