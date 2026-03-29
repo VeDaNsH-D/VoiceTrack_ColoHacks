@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { AnalyticsModal } from './AnalyticsModal.tsx'
-import { getInsights, getTransactionHistory, type HistoryEntry, type InsightsResult } from '../services/api'
+import { getBusinessDetails, getInsights, getTransactionHistory, type HistoryEntry, type InsightsResult } from '../services/api'
 import { FiTrendingUp, FiTrendingDown, FiArrowRight, FiTarget, FiAlertTriangle, FiCheckCircle, FiLayers, FiMic, FiCopy } from 'react-icons/fi'
 
 interface DashboardMainProps {
@@ -17,6 +17,7 @@ export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessId
   const [displayBalance, setDisplayBalance] = useState(0)
   const [showAnalytics, setShowAnalytics] = useState(false)
   const [businessIdCopied, setBusinessIdCopied] = useState(false)
+  const [resolvedBusinessCode, setResolvedBusinessCode] = useState('')
   const [insights, setInsights] = useState<InsightsResult>({
     totals: { sales: 0, expenses: 0 },
     transactionCount: 0,
@@ -30,7 +31,7 @@ export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessId
     ? Object.values(insights.anomalies).filter(Boolean).length
     : 0
   const latestDaily = insights.dailyLedger?.[insights.dailyLedger.length - 1]
-  const dashboardBusinessIdentifier = businessCode || businessId
+  const dashboardBusinessIdentifier = resolvedBusinessCode || businessCode || ''
   const todayTransactions = latestDaily?.transactionCount || 0
   const avgTicket = insights.transactionCount > 0 ? insights.totals.sales / insights.transactionCount : 0
   const salesTrend = (insights.dailyLedger || []).slice(-10).map(day => Number(day.sales || 0))
@@ -107,6 +108,47 @@ export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessId
     window.addEventListener('voicetrack:transaction-saved', onTransactionSaved)
     return () => window.removeEventListener('voicetrack:transaction-saved', onTransactionSaved)
   }, [loadInsights])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const resolveBusinessCode = async () => {
+      // Business codes are shareable IDs like BIZ-XXXXXX; never show raw object IDs here.
+      if (businessCode?.startsWith('BIZ-')) {
+        if (isMounted) {
+          setResolvedBusinessCode(businessCode)
+        }
+        return
+      }
+
+      if (!userId && !businessId) {
+        if (isMounted) {
+          setResolvedBusinessCode('')
+        }
+        return
+      }
+
+      try {
+        const details = await getBusinessDetails({
+          userId: userId || undefined,
+          businessId: businessId || undefined,
+        })
+        const code = details?.business?.businessCode || ''
+        if (isMounted) {
+          setResolvedBusinessCode(code)
+        }
+      } catch {
+        if (isMounted) {
+          setResolvedBusinessCode('')
+        }
+      }
+    }
+
+    void resolveBusinessCode()
+    return () => {
+      isMounted = false
+    }
+  }, [businessCode, userId, businessId])
 
   useEffect(() => {
     let animationFrame: number
