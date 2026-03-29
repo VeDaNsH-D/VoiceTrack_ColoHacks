@@ -2,19 +2,21 @@ import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { AnalyticsModal } from './AnalyticsModal.tsx'
 import { getInsights, getTransactionHistory, type HistoryEntry, type InsightsResult } from '../services/api'
-import { FiTrendingUp, FiTrendingDown, FiArrowRight, FiTarget, FiAlertTriangle, FiCheckCircle, FiLayers, FiMic } from 'react-icons/fi'
+import { FiTrendingUp, FiTrendingDown, FiArrowRight, FiTarget, FiAlertTriangle, FiCheckCircle, FiLayers, FiMic, FiCopy } from 'react-icons/fi'
 
 interface DashboardMainProps {
   userId: string
   businessId: string
+  businessCode?: string
   userName: string
   onRecordToday: () => void
   language: 'EN' | 'HI'
 }
 
-export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessId, userName, onRecordToday, language }) => {
+export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessId, businessCode, userName, onRecordToday, language }) => {
   const [displayBalance, setDisplayBalance] = useState(0)
   const [showAnalytics, setShowAnalytics] = useState(false)
+  const [businessIdCopied, setBusinessIdCopied] = useState(false)
   const [insights, setInsights] = useState<InsightsResult>({
     totals: { sales: 0, expenses: 0 },
     transactionCount: 0,
@@ -28,6 +30,7 @@ export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessId
     ? Object.values(insights.anomalies).filter(Boolean).length
     : 0
   const latestDaily = insights.dailyLedger?.[insights.dailyLedger.length - 1]
+  const dashboardBusinessIdentifier = businessCode || businessId
   const todayTransactions = latestDaily?.transactionCount || 0
   const avgTicket = insights.transactionCount > 0 ? insights.totals.sales / insights.transactionCount : 0
   const salesTrend = (insights.dailyLedger || []).slice(-10).map(day => Number(day.sales || 0))
@@ -136,6 +139,30 @@ export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessId
     visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: 'easeOut' } },
   }
 
+  const handleCopyBusinessId = async () => {
+    if (!dashboardBusinessIdentifier) {
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(dashboardBusinessIdentifier)
+      setBusinessIdCopied(true)
+      window.setTimeout(() => setBusinessIdCopied(false), 1800)
+    } catch {
+      const tempInput = document.createElement('textarea')
+      tempInput.value = dashboardBusinessIdentifier
+      tempInput.style.position = 'fixed'
+      tempInput.style.opacity = '0'
+      document.body.appendChild(tempInput)
+      tempInput.focus()
+      tempInput.select()
+      document.execCommand('copy')
+      document.body.removeChild(tempInput)
+      setBusinessIdCopied(true)
+      window.setTimeout(() => setBusinessIdCopied(false), 1800)
+    }
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -181,6 +208,31 @@ export const DashboardMain: React.FC<DashboardMainProps> = ({ userId, businessId
             {language === 'EN' ? "Real-time performance snapshot from your backend ledger." : 'बैकएंड लेजर से रियल-टाइम प्रदर्शन स्नैपशॉट।'}
           </p>
         </motion.div>
+
+        {dashboardBusinessIdentifier && (
+          <motion.div variants={itemVariants}>
+            <div className="rounded-[20px] border border-slate-900/10 bg-white/80 backdrop-blur-md px-4 py-3 flex items-center justify-between gap-3 shadow-[0_10px_26px_-18px_rgba(15,23,42,0.5)]">
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                  {language === 'EN' ? 'Business ID' : 'बिजनेस आईडी'}
+                </p>
+                <p className="text-[15px] md:text-[16px] font-semibold tracking-[0.03em] text-slate-900 truncate">
+                  {dashboardBusinessIdentifier}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCopyBusinessId}
+                className={`flex items-center gap-2 rounded-full px-3.5 py-2 border text-[12px] font-bold transition-all ${businessIdCopied ? 'bg-emerald-100 border-emerald-200 text-emerald-800' : 'bg-slate-900 border-slate-800 text-white hover:bg-slate-800'}`}
+              >
+                {businessIdCopied ? <FiCheckCircle size={14} /> : <FiCopy size={14} />}
+                {businessIdCopied
+                  ? (language === 'EN' ? 'Copied' : 'कॉपी हुआ')
+                  : (language === 'EN' ? 'Copy' : 'कॉपी करें')}
+              </button>
+            </div>
+          </motion.div>
+        )}
 
         {/* Main Balance Card */}
         <motion.div variants={itemVariants}>

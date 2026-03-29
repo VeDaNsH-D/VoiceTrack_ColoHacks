@@ -23,6 +23,7 @@ export interface AuthSession {
   identifier: string
   businessCode?: string
   businessId?: string
+  preferredLanguage?: 'EN' | 'HI'
 }
 
 function getSavedSession(): AuthSession | null {
@@ -50,7 +51,7 @@ export function App() {
   const [currentView, setCurrentView] = useState<ViewState>(() => (getSavedSession() ? 'dashboard' : 'landing'))
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false)
-  const [language, setLanguage] = useState<'EN' | 'HI'>('EN')
+  const [language, setLanguage] = useState<'EN' | 'HI'>(() => getSavedSession()?.preferredLanguage || 'EN')
   const [userName, setUserName] = useState<string>(() => getSavedSession()?.name || '')
 
   const handleNavigate = (view: ViewState) => {
@@ -77,9 +78,16 @@ export function App() {
     setLanguage(prev => prev === 'EN' ? 'HI' : 'EN')
   }
 
+  const handleLanguageChange = (nextLanguage: 'EN' | 'HI') => {
+    setLanguage(nextLanguage)
+  }
+
   const handleLogin = (authSession: AuthSession) => {
     setSession(authSession)
     setUserName(authSession.name)
+    if (authSession.preferredLanguage) {
+      setLanguage(authSession.preferredLanguage)
+    }
     setAuthToken(authSession.token)
     localStorage.setItem('voicetrack.session', JSON.stringify(authSession))
     setCurrentView('dashboard')
@@ -95,6 +103,7 @@ export function App() {
       identifier: 'demo-user',
       businessCode: 'DEMO',
       businessId: 'DEMO',
+      preferredLanguage: 'EN',
     })
     setCurrentView('dashboard')
   }
@@ -142,7 +151,12 @@ export function App() {
               exit={{ opacity: 0, x: -20 }}
               className="h-full min-h-0 overflow-y-auto"
             >
-              <Auth onLogin={handleLogin} onBack={() => setCurrentView('landing')} language={language} />
+              <Auth
+                onLogin={handleLogin}
+                onBack={() => setCurrentView('landing')}
+                language={language}
+                onSignupLanguageChange={handleLanguageChange}
+              />
             </motion.div>
           )}
 
@@ -157,6 +171,7 @@ export function App() {
               <DashboardMain
                 userId={session?.userId || ''}
                 businessId={session?.businessId || ''}
+                businessCode={session?.businessCode || ''}
                 userName={userName}
                 onRecordToday={() => setCurrentView('voice')}
                 language={language}
@@ -248,7 +263,7 @@ export function App() {
                 userName={userName}
                 language={language}
                 onLogout={() => handleNavigate('landing')}
-                onLanguageChange={toggleLanguage}
+                onLanguageChange={handleLanguageChange}
                 onToggleSidebar={toggleSidebar}
               />
             </motion.div>

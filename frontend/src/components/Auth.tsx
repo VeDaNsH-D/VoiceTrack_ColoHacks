@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import axios from 'axios'
 import { loginUser, signupUser } from '../services/api'
@@ -9,6 +9,7 @@ interface AuthProps {
   onLogin: (session: AuthSession) => void
   onBack: () => void
   language: 'EN' | 'HI'
+  onSignupLanguageChange: (lang: 'EN' | 'HI') => void
 }
 
 type AuthStep = 'choice' | 'signup' | 'login'
@@ -42,7 +43,7 @@ const InputField: React.FC<InputFieldProps> = ({ label, type = 'text', placehold
   </div>
 )
 
-export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
+export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language, onSignupLanguageChange }) => {
   const [step, setStep] = useState<AuthStep>('choice')
   const [phone, setPhone] = useState('')
   const [loginIdentifier, setLoginIdentifier] = useState('')
@@ -53,8 +54,13 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
   const [businessMode, setBusinessMode] = useState<'create' | 'join'>('create')
   const [businessCode, setBusinessCode] = useState('')
   const [businessPassword, setBusinessPassword] = useState('')
+  const [signupLanguage, setSignupLanguage] = useState<'EN' | 'HI'>(language)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    setSignupLanguage(language)
+  }, [language])
 
   const handleStepChange = (next: AuthStep) => {
     setError('')
@@ -71,10 +77,11 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
     if (businessMode === 'join' && !businessCode.trim()) return setError(language === 'EN' ? 'Business ID is required to join.' : 'जुड़ने के लिए बिजनेस आईडी आवश्यक है।')
 
     const identifier = `+91${phone}`
+    onSignupLanguageChange(signupLanguage)
     setIsLoading(true)
     try {
-      const authResult = await signupUser({ name: name.trim(), phone: identifier, password, businessMode, businessName: businessMode === 'create' ? `${name.trim()}'s Business` : undefined, businessType: occupation.trim().toLowerCase(), businessCode: businessMode === 'join' ? businessCode.trim().toUpperCase() : undefined, businessPassword })
-      onLogin({ userId: authResult.user._id, name: authResult.user.name || name.trim(), token: authResult.token, identifier, businessCode: authResult.user.businessId?.businessCode || authResult.business?.businessCode, businessId: authResult.user.businessId?._id || authResult.business?._id })
+      const authResult = await signupUser({ name: name.trim(), phone: identifier, password, businessMode, businessName: businessMode === 'create' ? `${name.trim()}'s Business` : undefined, businessType: occupation.trim().toLowerCase(), businessCode: businessMode === 'join' ? businessCode.trim().toUpperCase() : undefined, businessPassword, preferredLanguage: signupLanguage })
+      onLogin({ userId: authResult.user._id, name: authResult.user.name || name.trim(), token: authResult.token, identifier, businessCode: authResult.user.businessId?.businessCode || authResult.business?.businessCode, businessId: authResult.user.businessId?._id || authResult.business?._id, preferredLanguage: signupLanguage })
     } catch (apiError: unknown) {
       const isNetworkIssue = axios.isAxiosError(apiError) && !apiError.response
       setError(String(isNetworkIssue ? (language === 'EN' ? 'Cannot reach backend. Start server on localhost:5001.' : 'बैकएंड तक पहुंच नहीं हो रही।') : ((axios.isAxiosError(apiError) ? apiError.response?.data?.message : undefined) || (language === 'EN' ? 'Signup failed. Please try again.' : 'साइनअप असफल हुआ।'))))
@@ -103,31 +110,36 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.4 }}
-      className="min-h-screen bg-app-gradient flex flex-col relative"
+      className="min-h-screen bg-[#f1f5f9] flex flex-col relative overflow-hidden"
     >
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-20 left-[8%] h-64 w-64 rounded-full bg-blue-400/20 blur-3xl" />
+        <div className="absolute top-12 right-[10%] h-72 w-72 rounded-full bg-emerald-300/20 blur-3xl" />
+      </div>
+
       {/* Top bar */}
-      <div className="flex items-center px-6 pt-12 pb-4">
+      <div className="relative z-10 flex items-center px-6 pt-10 pb-4 max-w-6xl w-full mx-auto">
         <button
           onClick={() => step === 'choice' ? onBack() : handleStepChange('choice')}
-          className="w-10 h-10 rounded-full bg-white/60 border border-white/70 flex items-center justify-center hover:bg-white/90 transition-all shadow-sm"
+          className="w-10 h-10 rounded-full bg-white/70 border border-slate-900/10 flex items-center justify-center hover:bg-white transition-all shadow-sm"
         >
           <FiArrowLeft size={18} className="text-[#1A1A1A]" />
         </button>
         <div className="flex-1 flex justify-center">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 text-[#1A1A1A]">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-slate-900/10 backdrop-blur">
+            <div className="w-6 h-6 text-slate-900">
               <svg viewBox="0 0 100 100" fill="none">
                 <path d="M20 20 H50 V60 C50 71 41 80 30 80 C24.47 80 20 75.53 20 70 V20 Z" fill="currentColor" />
                 <path d="M50 45 C66.56 45 80 58.44 80 75 C80 91.56 66.56 100 50 100 V45 Z" fill="currentColor" />
               </svg>
             </div>
-            <span className="text-[16px] font-extrabold text-[#1A1A1A] tracking-tight">VoiceTrace</span>
+            <span className="text-[16px] font-extrabold text-slate-900 tracking-tight">VoiceTrace</span>
           </div>
         </div>
         <div className="w-10" />
       </div>
 
-      <div className="flex-1 flex flex-col justify-center px-6 pb-16">
+      <div className="relative z-10 flex-1 flex flex-col justify-center px-6 pb-16">
         <div className="max-w-sm mx-auto w-full">
           <AnimatePresence mode="wait">
 
@@ -139,17 +151,17 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -16 }}
                 transition={{ duration: 0.35 }}
-                className="flex flex-col items-center text-center"
+                className="flex flex-col items-center text-center rounded-[28px] border border-slate-900/10 bg-white/75 backdrop-blur-md px-6 py-8 shadow-[0_12px_30px_-22px_rgba(15,23,42,0.55)]"
               >
-                <div className="w-[72px] h-[72px] rounded-[22px] bg-gradient-to-br from-[#8A9B80] to-[#6b7d62] flex items-center justify-center mb-7 shadow-lg">
+                <div className="w-[72px] h-[72px] rounded-[22px] bg-gradient-to-br from-slate-900 to-slate-700 flex items-center justify-center mb-7 shadow-lg">
                   <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#F8F5F2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
                   </svg>
                 </div>
-                <h1 className="text-[30px] font-extrabold text-[#1A1A1A] tracking-tight mb-2">
+                <h1 className="text-[30px] font-extrabold text-slate-900 tracking-tight mb-2">
                   {language === 'EN' ? 'Welcome back' : 'आपका स्वागत है'}
                 </h1>
-                <p className="text-[14px] text-[#1A1A1A]/50 font-medium mb-10 max-w-[260px] leading-relaxed">
+                <p className="text-[14px] text-slate-600 font-medium mb-10 max-w-[260px] leading-relaxed">
                   {language === 'EN' ? 'Sign up for a new account or log in to continue.' : 'नया अकाउंट बनाएं या मौजूदा से लॉगिन करें।'}
                 </p>
 
@@ -164,7 +176,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
                   <motion.button
                     whileTap={{ scale: 0.97 }}
                     onClick={() => handleStepChange('login')}
-                    className="btn-ghost w-full text-[16px] !py-[15px] !rounded-full border border-[#1A1A1A]/12"
+                    className="btn-ghost w-full text-[16px] !py-[15px] !rounded-full border border-slate-900/12"
                   >
                     {language === 'EN' ? 'Log In' : 'लॉगिन करें'}
                   </motion.button>
@@ -180,17 +192,42 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -24 }}
                 transition={{ duration: 0.35 }}
+                className="rounded-[28px] border border-slate-900/10 bg-white/78 backdrop-blur-md p-6 shadow-[0_12px_30px_-22px_rgba(15,23,42,0.55)]"
               >
                 <div className="mb-8">
-                  <h1 className="text-[28px] font-extrabold text-[#1A1A1A] tracking-tight mb-1">
+                  <h1 className="text-[28px] font-extrabold text-slate-900 tracking-tight mb-1">
                     {language === 'EN' ? 'Sign Up' : 'साइन अप'}
                   </h1>
-                  <p className="text-[13.5px] text-[#1A1A1A]/50 font-medium">
+                  <p className="text-[13.5px] text-slate-600 font-medium">
                     {language === 'EN' ? 'Create your account — no OTP needed.' : 'अपना अकाउंट बनाएं — OTP की जरूरत नहीं।'}
                   </p>
                 </div>
 
                 <form onSubmit={handleSignupSubmit} className="space-y-3">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[11.5px] font-bold uppercase tracking-widest text-slate-500">
+                      {language === 'EN' ? 'Preferred Language' : 'पसंदीदा भाषा'}
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        { code: 'EN', label: 'English' },
+                        { code: 'HI', label: 'हिंदी' },
+                      ] as const).map(option => (
+                        <button
+                          key={option.code}
+                          type="button"
+                          onClick={() => {
+                            setSignupLanguage(option.code)
+                            onSignupLanguageChange(option.code)
+                          }}
+                          className={`py-2.5 rounded-2xl text-[13px] font-bold transition-all border ${signupLanguage === option.code ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-900/10 hover:bg-slate-50'}`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <InputField label={language === 'EN' ? 'Phone Number' : 'फ़ोन नंबर'} type="tel" placeholder="98765 43210" value={phone} onChange={setPhone} prefix="+91" maxLength={10} />
                   <InputField label={language === 'EN' ? 'Your Name' : 'आपका नाम'} placeholder="e.g. Ramesh" value={name} onChange={setName} autoFocus />
                   <InputField label={language === 'EN' ? 'Occupation' : 'पेशा'} placeholder="e.g. Tea Seller" value={occupation} onChange={setOccupation} />
@@ -207,7 +244,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
                           key={mode}
                           type="button"
                           onClick={() => setBusinessMode(mode)}
-                          className={`py-2.5 rounded-2xl text-[13px] font-bold transition-all border ${businessMode === mode ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]' : 'bg-white/50 text-[#1A1A1A]/60 border-white/60 hover:bg-white/80'}`}
+                          className={`py-2.5 rounded-2xl text-[13px] font-bold transition-all border ${businessMode === mode ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-900/10 hover:bg-slate-50'}`}
                         >
                           {mode === 'create' ? (language === 'EN' ? 'Create New' : 'नया बनाएं') : (language === 'EN' ? 'Join Existing' : 'जुड़ें')}
                         </button>
@@ -261,12 +298,13 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onBack, language }) => {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -24 }}
                 transition={{ duration: 0.35 }}
+                className="rounded-[28px] border border-slate-900/10 bg-white/78 backdrop-blur-md p-6 shadow-[0_12px_30px_-22px_rgba(15,23,42,0.55)]"
               >
                 <div className="mb-8">
-                  <h1 className="text-[28px] font-extrabold text-[#1A1A1A] tracking-tight mb-1">
+                  <h1 className="text-[28px] font-extrabold text-slate-900 tracking-tight mb-1">
                     {language === 'EN' ? 'Welcome Back' : 'वापसी पर स्वागत'}
                   </h1>
-                  <p className="text-[13.5px] text-[#1A1A1A]/50 font-medium">
+                  <p className="text-[13.5px] text-slate-600 font-medium">
                     {language === 'EN' ? 'Use your phone number or email to sign in.' : 'फ़ोन या ईमेल से लॉगिन करें।'}
                   </p>
                 </div>

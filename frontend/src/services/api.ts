@@ -370,6 +370,7 @@ export async function signupUser(payload: {
   phone?: string
   email?: string
   password: string
+  preferredLanguage?: 'EN' | 'HI'
   businessMode: 'create' | 'join'
   businessName?: string
   businessType?: string
