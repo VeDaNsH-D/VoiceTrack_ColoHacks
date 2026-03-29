@@ -7,8 +7,91 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+const NUMBER_WORDS = new Map([
+  ["zero", 0], ["shunya", 0],
+  ["one", 1], ["ek", 1], ["एक", 1],
+  ["two", 2], ["do", 2], ["दो", 2],
+  ["three", 3], ["teen", 3], ["तीन", 3],
+  ["four", 4], ["char", 4], ["chaar", 4], ["चार", 4],
+  ["five", 5], ["paanch", 5], ["पांच", 5], ["पाँच", 5],
+  ["six", 6], ["cheh", 6], ["छह", 6],
+  ["seven", 7], ["saat", 7], ["सात", 7],
+  ["eight", 8], ["aath", 8], ["आठ", 8],
+  ["nine", 9], ["nau", 9], ["नौ", 9],
+  ["ten", 10], ["das", 10], ["दस", 10],
+  ["twenty", 20], ["bees", 20], ["बीस", 20],
+  ["thirty", 30], ["tees", 30], ["तीस", 30],
+  ["forty", 40], ["chalis", 40], ["chaalis", 40], ["चालीस", 40],
+  ["fifty", 50], ["pachaas", 50], ["पचास", 50],
+  ["sixty", 60], ["saath", 60], ["साठ", 60],
+  ["seventy", 70], ["sattar", 70], ["सत्तर", 70],
+  ["eighty", 80], ["assi", 80], ["अस्सी", 80],
+  ["ninety", 90], ["nabbe", 90], ["नब्बे", 90],
+  ["hundred", 100], ["sau", 100], ["सो", 100], ["सौ", 100],
+]);
+
+function parseWordNumber(value) {
+  const normalized = String(value || "")
+    .toLowerCase()
+    .replace(/[,.]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) {
+    return NaN;
+  }
+
+  if (NUMBER_WORDS.has(normalized)) {
+    return NUMBER_WORDS.get(normalized);
+  }
+
+  const tokens = normalized.split(" ").filter(Boolean);
+  if (!tokens.length || tokens.length > 3) {
+    return NaN;
+  }
+
+  let total = 0;
+  for (const token of tokens) {
+    const numeric = NUMBER_WORDS.get(token);
+    if (typeof numeric !== "number") {
+      return NaN;
+    }
+
+    if (numeric === 100) {
+      total = Math.max(1, total) * 100;
+    } else {
+      total += numeric;
+    }
+  }
+
+  return total;
+}
+
 function toNumber(value) {
-  const num = Number(value);
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  const text = String(value || "").trim();
+  if (!text) {
+    return 0;
+  }
+
+  const numericText = text
+    .replace(/[₹,]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const num = Number(numericText);
+  if (Number.isFinite(num)) {
+    return num;
+  }
+
+  const fromWords = parseWordNumber(numericText);
+  if (Number.isFinite(fromWords)) {
+    return fromWords;
+  }
+
   return Number.isFinite(num) ? num : 0;
 }
 
@@ -236,11 +319,11 @@ async function parseMultipleTransactions({ transcript, rawTranscript }) {
   const transactions = normalizeTransactions(fallback, input);
   const parserConfidence = transactions.length
     ? Number(
-        (
-          transactions.reduce((sum, tx) => sum + Number(tx.confidence || 0), 0) /
-          transactions.length
-        ).toFixed(4)
-      )
+      (
+        transactions.reduce((sum, tx) => sum + Number(tx.confidence || 0), 0) /
+        transactions.length
+      ).toFixed(4)
+    )
     : 0;
 
   return {

@@ -78,16 +78,16 @@ async function getInsightsSummary(scope = null) {
 
   let transactions = allTransactions;
   if (normalizedBusinessId) {
-    transactions = allTransactions.filter((transaction) => {
-      const { entryBusinessId } = resolveEntryIds(transaction);
-      return entryBusinessId === normalizedBusinessId;
-    });
-
-    // Backward compatibility: older entries may not have businessId populated.
-    if (!transactions.length && normalizedUserId) {
+    if (normalizedUserId) {
       transactions = allTransactions.filter((transaction) => {
-        const { entryUserId } = resolveEntryIds(transaction);
-        return entryUserId === normalizedUserId;
+        const { entryUserId, entryBusinessId } = resolveEntryIds(transaction);
+        // Include business-wide entries plus legacy user-only entries.
+        return entryBusinessId === normalizedBusinessId || entryUserId === normalizedUserId;
+      });
+    } else {
+      transactions = allTransactions.filter((transaction) => {
+        const { entryBusinessId } = resolveEntryIds(transaction);
+        return entryBusinessId === normalizedBusinessId;
       });
     }
   } else if (normalizedUserId) {

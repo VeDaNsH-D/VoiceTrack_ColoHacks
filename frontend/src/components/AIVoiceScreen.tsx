@@ -89,6 +89,24 @@ function getAssistantReplyText(result: VoiceNarrationResult | null, language: 'E
   return ''
 }
 
+function isSimpleGreeting(text: string): boolean {
+  const normalized = String(text || '').trim().toLowerCase()
+  if (!normalized) {
+    return false
+  }
+
+  const compact = normalized.replace(/[!,.?]/g, '').trim()
+  return /^(hi+|hello+|hey+|namaste|namaskar|नमस्ते|नमस्कार)$/.test(compact)
+}
+
+function getSimpleGreetingReply(language: 'EN' | 'HI'): string {
+  if (language === 'EN') {
+    return 'Hi! Ask me what you need.'
+  }
+
+  return 'नमस्ते! बताइए आपको क्या चाहिए।'
+}
+
 export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, onToggleSidebar, language }) => {
   const MAX_RECORDING_MS = 180000
   const [stage, setStage] = React.useState<VoiceStage>('idle')
@@ -201,6 +219,29 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
     setError('')
     setStage('processing')
     try {
+      const directTranscript = String(transcript || '').trim()
+      if (directTranscript && isSimpleGreeting(directTranscript)) {
+        const greetingReply = getSimpleGreetingReply(language)
+        const greetingResult: VoiceNarrationResult = {
+          status: 'agent_reply',
+          rawTranscript: directTranscript,
+          normalizedTranscript: directTranscript,
+          transactions: [],
+          overallConfidence: 1,
+          responseMessage: greetingReply,
+          audioUrl: null,
+        }
+
+        setResult(greetingResult)
+        setRawTranscript(directTranscript)
+        setNormalizedTranscript(directTranscript)
+        setEditableTranscript(directTranscript)
+        setResultSummary(greetingReply)
+        setAudioUrl(null)
+        setStage('ready')
+        return
+      }
+
       await new Promise(r => setTimeout(r, 300))
       setStage('understanding')
       const narration = await processVoiceNarration({ audioBlob, transcript, userId: userId || undefined, languageHint: language === 'HI' ? 'hi' : 'en', forceSave })
@@ -254,13 +295,18 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
       const blob = await stopRecording(mediaRecorderRef.current)
       const wavBlob = await blobToWav(blob)
       mediaRecorderRef.current = null
-      await submitVoice(wavBlob, undefined, false)
+      const transcriptHint = String(liveTranscript || '').trim()
+      if (isSimpleGreeting(transcriptHint)) {
+        await submitVoice(undefined, transcriptHint, false)
+      } else {
+        await submitVoice(wavBlob, undefined, false)
+      }
     } catch {
       setError(language === 'EN' ? 'Audio capture failed. Try again.' : 'ऑडियो कैप्चर विफल रहा।')
       setStage('idle')
       setIsListening(false)
     }
-  }, [clearAutoStopTimer, language, stopLiveRecognition, stopWaveform, submitVoice])
+  }, [clearAutoStopTimer, language, liveTranscript, stopLiveRecognition, stopWaveform, submitVoice])
 
   const handleConfirmAll = async () => { if (result) await submitVoice(undefined, result.rawTranscript, true) }
   const handleEditSubmit = async () => { if (!editableTranscript.trim()) return; setIsEditMode(false); await submitVoice(undefined, editableTranscript.trim(), false) }
@@ -460,13 +506,13 @@ export const AIVoiceScreen: React.FC<AIVoiceScreenProps> = ({ userId, userName, 
             </div>
           </div>
 
-            <p className="text-[12px] text-white/40 font-semibold tracking-wide">
-              {isListening
-                ? (language === 'EN' ? 'Tap to stop' : 'रोकने के लिए टैप करें')
-                : isBusy
-                  ? (language === 'EN' ? 'Please wait…' : 'कृपया प्रतीक्षा करें…')
-                  : (language === 'EN' ? 'Tap to start recording' : 'रिकॉर्डिंग शुरू करने के लिए टैप करें')}
-            </p>
+          <p className="text-[12px] text-white/40 font-semibold tracking-wide">
+            {isListening
+              ? (language === 'EN' ? 'Tap to stop' : 'रोकने के लिए टैप करें')
+              : isBusy
+                ? (language === 'EN' ? 'Please wait…' : 'कृपया प्रतीक्षा करें…')
+                : (language === 'EN' ? 'Tap to start recording' : 'रिकॉर्डिंग शुरू करने के लिए टैप करें')}
+          </p>
         </div>
 
         {/* Transcript Cards */}

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { getTransactionHistory, type HistoryEntry } from '../services/api'
+import { deleteTransactionHistoryEntry, getTransactionHistory, type HistoryEntry } from '../services/api'
 import { TransactionTable } from './TransactionTable'
 
 interface HistoryLedgerProps {
@@ -27,6 +27,7 @@ export const HistoryLedger: React.FC<HistoryLedgerProps> = ({ userId, businessId
     const [selectedDate, setSelectedDate] = useState('')
     const [records, setRecords] = useState<HistoryEntry[]>([])
     const [isLoading, setIsLoading] = useState(false)
+    const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null)
 
     const loadHistory = React.useCallback(async () => {
         setIsLoading(true)
@@ -180,6 +181,37 @@ export const HistoryLedger: React.FC<HistoryLedgerProps> = ({ userId, businessId
         URL.revokeObjectURL(url)
     }
 
+    const handleDeleteTransaction = async (transactionId: string) => {
+        if (!transactionId || deletingTransactionId) {
+            return
+        }
+
+        const confirmed = window.confirm(
+            language === 'EN'
+                ? 'Delete this ledger log permanently?'
+                : 'क्या आप इस लेजर लॉग को स्थायी रूप से हटाना चाहते हैं?'
+        )
+
+        if (!confirmed) {
+            return
+        }
+
+        setDeletingTransactionId(transactionId)
+        try {
+            await deleteTransactionHistoryEntry({
+                transactionId,
+                userId: userId || undefined,
+                businessId: businessId || undefined,
+            })
+
+            setRecords((prev) => prev.filter((entry) => entry.id !== transactionId))
+        } catch {
+            window.alert(language === 'EN' ? 'Unable to delete this log right now.' : 'यह लॉग अभी हटाया नहीं जा सका।')
+        } finally {
+            setDeletingTransactionId(null)
+        }
+    }
+
     return (
         <div className="h-full min-h-0 overflow-y-auto bg-slate-100 px-6 pb-10 pt-8">
             <div className="mx-auto max-w-[1400px]">
@@ -295,7 +327,12 @@ export const HistoryLedger: React.FC<HistoryLedgerProps> = ({ userId, businessId
                         {language === 'EN' ? 'Loading records...' : 'रिकॉर्ड लोड हो रहे हैं...'}
                     </div>
                 ) : (
-                    <TransactionTable transactions={filteredData} language={language} />
+                    <TransactionTable
+                        transactions={filteredData}
+                        language={language}
+                        deletingTransactionId={deletingTransactionId}
+                        onDeleteTransaction={handleDeleteTransaction}
+                    />
                 )}
             </div>
         </div>

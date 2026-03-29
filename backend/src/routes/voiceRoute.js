@@ -108,6 +108,24 @@ function detectLanguage(text) {
   return "en";
 }
 
+function isSimpleGreeting(text) {
+  const normalized = String(text || "").trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  const compact = normalized.replace(/[!,.?]/g, "").trim();
+  return /^(hi+|hello+|hey+|namaste|namaskar|नमस्ते|नमस्कार)$/.test(compact);
+}
+
+function buildSimpleGreetingReply(language) {
+  if (language === "hi") {
+    return "नमस्ते! बताइए आपको क्या चाहिए।";
+  }
+
+  return "Hi! Ask me what you need.";
+}
+
 function looksLikeNonTransactionQuery(text) {
   const value = String(text || "").trim().toLowerCase();
   if (!value) {
@@ -139,8 +157,22 @@ function looksLikeNonTransactionQuery(text) {
     "trend",
     "fayda",
     "nuksan",
+    "munafa",
+    "ghata",
+    "लाभ",
+    "मुनाफा",
+    "प्रॉफिट",
+    "घाटा",
+    "नुकसान",
     "bikri",
     "kul",
+    "लेनदेन",
+    "ट्रांजैक्शन",
+    "ट्रांजेक्शन",
+    "गिनती",
+    "संख्या",
+    "कितने ट्रांजैक्शन",
+    "कितनी बिक्री",
     "kitna",
     "kitni",
   ];
@@ -165,6 +197,22 @@ function looksLikeNonTransactionQuery(text) {
   }
 
   return hasAnalyticsIntent || hasQuestionShape;
+}
+
+function shouldTreatAsNonTransactionQuery(text) {
+  const cleaned = String(text || "").trim();
+  if (!cleaned) {
+    return false;
+  }
+
+  if (looksLikeNonTransactionQuery(cleaned)) {
+    return true;
+  }
+
+  const inferred = inferIntentFromRules(cleaned);
+  const intent = String(inferred?.intent || "UNKNOWN").toUpperCase();
+
+  return intent !== "UNKNOWN";
 }
 
 async function resolveNonTransactionVoiceReply({ userId, transcript, languageHint }) {
@@ -311,7 +359,36 @@ router.post("/process", upload.single("audio"), async (req, res, next) => {
       });
     }
 
-    if (looksLikeNonTransactionQuery(rawTranscript)) {
+    if (isSimpleGreeting(rawTranscript)) {
+      const languageHint = req.body?.languageHint || detectLanguage(rawTranscript);
+      const responseMessage = buildSimpleGreetingReply(languageHint);
+      const audioUrl = await generateSpeech(responseMessage, languageHint);
+
+      return sendSuccess(
+        res,
+        {
+          status: "agent_reply",
+          rawTranscript,
+          normalizedTranscript: rawTranscript,
+          transactions: [],
+          overallConfidence: 1,
+          responseMessage,
+          audioUrl,
+          stt: sttResult || null,
+          parser: {
+            modelUsed: "greeting",
+          },
+          assistantReply: {
+            modelUsed: "greeting",
+            languageStyle: languageHint,
+          },
+          savedToHistory: false,
+        },
+        "Simple greeting handled"
+      );
+    }
+
+    if (shouldTreatAsNonTransactionQuery(rawTranscript)) {
       const assistantReply = await resolveNonTransactionVoiceReply({
         userId,
         transcript: rawTranscript,

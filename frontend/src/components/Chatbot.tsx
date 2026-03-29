@@ -34,6 +34,24 @@ function getWelcomeMessage(language: 'EN' | 'HI'): string {
   return 'नमस्ते! मैं आपका VoiceTrace बिजनेस असिस्टेंट हूँ। मैं आपके पिछले सभी लेन-देन जानता हूँ। ऊपर दिए गए टैब से Insights और Ledger Transaction मोड बदल सकते हैं, या आवाज में बोलें "इनसाइट्स मोड" या "लेजर मोड"। आज आप क्या जानना चाहेंगे?'
 }
 
+function isSimpleGreeting(text: string): boolean {
+  const normalized = String(text || '').trim().toLowerCase()
+  if (!normalized) {
+    return false
+  }
+
+  const compact = normalized.replace(/[!,.?]/g, '').trim()
+  return /^(hi+|hello+|hey+|namaste|namaskar|नमस्ते|नमस्कार)$/.test(compact)
+}
+
+function getSimpleGreetingReply(language: 'EN' | 'HI'): string {
+  if (language === 'EN') {
+    return 'Hi! Ask me what you need.'
+  }
+
+  return 'नमस्ते! बताइए आपको क्या चाहिए।'
+}
+
 export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, language }) => {
   const MAX_RECORDING_MS = 180000
   const [inputText, setInputText] = useState('')
@@ -331,6 +349,21 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
     appendAssistantMessage(reply, audioUrl)
   }, [appendAssistantMessage, language, summarizeLedgerTextResult, userId])
 
+  const respondToSimpleGreeting = React.useCallback(async () => {
+    const reply = getSimpleGreetingReply(language)
+    let audioUrl: string | null = null
+    try {
+      audioUrl = await synthesizeAssistantAudio({
+        text: reply,
+        language: language === 'EN' ? 'en' : 'hi',
+      })
+    } catch {
+      audioUrl = null
+    }
+
+    appendAssistantMessage(reply, audioUrl)
+  }, [appendAssistantMessage, language])
+
   const sendTextMessage = React.useCallback(async (messageToSend: string) => {
     if (!messageToSend.trim()) return
     if (isSending || isRecording || isAudioProcessing) return
@@ -339,6 +372,11 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
     setIsSending(true)
 
     try {
+      if (isSimpleGreeting(messageToSend)) {
+        await respondToSimpleGreeting()
+        return
+      }
+
       if (chatMode === 'insights') {
         await fetchAssistantReply(messageToSend)
       } else {
@@ -349,7 +387,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
     } finally {
       setIsSending(false)
     }
-  }, [appendErrorReply, chatMode, fetchAssistantReply, isAudioProcessing, isRecording, isSending, runLedgerTextPipeline])
+  }, [appendErrorReply, chatMode, fetchAssistantReply, isAudioProcessing, isRecording, isSending, respondToSimpleGreeting, runLedgerTextPipeline])
 
   const handleSend = async () => {
     if (!inputText.trim()) return
@@ -410,6 +448,20 @@ export const Chatbot: React.FC<ChatbotProps> = ({ userId, onToggleSidebar, langu
 
       if (!transcript) {
         throw new Error('EMPTY_TRANSCRIPT')
+      }
+
+      if (isSimpleGreeting(transcript)) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: Date.now(),
+            sender: 'user',
+            text: transcript,
+          },
+        ])
+
+        await respondToSimpleGreeting()
+        return
       }
 
       const modeFromVoice = detectModeFromVoiceCommand(transcript)

@@ -21,6 +21,94 @@ function basicClean(text) {
     return text.trim();
 }
 
+const NUMBER_WORDS = new Map([
+    ["zero", 0], ["shunya", 0],
+    ["one", 1], ["ek", 1], ["एक", 1],
+    ["two", 2], ["do", 2], ["दो", 2],
+    ["three", 3], ["teen", 3], ["तीन", 3],
+    ["four", 4], ["char", 4], ["chaar", 4], ["चार", 4],
+    ["five", 5], ["paanch", 5], ["पांच", 5], ["पाँच", 5],
+    ["six", 6], ["cheh", 6], ["छह", 6],
+    ["seven", 7], ["saat", 7], ["सात", 7],
+    ["eight", 8], ["aath", 8], ["आठ", 8],
+    ["nine", 9], ["nau", 9], ["नौ", 9],
+    ["ten", 10], ["das", 10], ["दस", 10],
+    ["twenty", 20], ["bees", 20], ["बीस", 20],
+    ["thirty", 30], ["tees", 30], ["तीस", 30],
+    ["forty", 40], ["chalis", 40], ["chaalis", 40], ["चालीस", 40],
+    ["fifty", 50], ["pachaas", 50], ["पचास", 50],
+    ["sixty", 60], ["saath", 60], ["साठ", 60],
+    ["seventy", 70], ["sattar", 70], ["सत्तर", 70],
+    ["eighty", 80], ["assi", 80], ["अस्सी", 80],
+    ["ninety", 90], ["nabbe", 90], ["नब्बे", 90],
+    ["hundred", 100], ["sau", 100], ["सो", 100], ["सौ", 100],
+]);
+
+function parseWordNumber(value) {
+    const normalized = String(value || "")
+        .toLowerCase()
+        .replace(/[,.]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    if (!normalized) {
+        return NaN;
+    }
+
+    if (NUMBER_WORDS.has(normalized)) {
+        return NUMBER_WORDS.get(normalized);
+    }
+
+    const tokens = normalized.split(" ").filter(Boolean);
+    if (!tokens.length || tokens.length > 3) {
+        return NaN;
+    }
+
+    let total = 0;
+    for (const token of tokens) {
+        const value = NUMBER_WORDS.get(token);
+        if (typeof value !== "number") {
+            return NaN;
+        }
+
+        if (value === 100) {
+            total = Math.max(1, total) * 100;
+        } else {
+            total += value;
+        }
+    }
+
+    return total;
+}
+
+function toNumberLike(value) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return value;
+    }
+
+    const text = String(value ?? "").trim();
+    if (!text) {
+        return null;
+    }
+
+    const numericText = text
+        .replace(/[₹,]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const asNumber = Number(numericText);
+    if (Number.isFinite(asNumber)) {
+        return asNumber;
+    }
+
+    const fromWords = parseWordNumber(numericText);
+    if (Number.isFinite(fromWords)) {
+        return fromWords;
+    }
+
+    return null;
+}
+
 /**
  * Detect language from input text
  */
@@ -213,9 +301,9 @@ function parseAndValidateResponse(content) {
         const validTransactions = parsed.transactions.map(t => ({
             type: t.type || "expense",
             item: t.item || "",
-            quantity: typeof t.quantity === "number" ? t.quantity : null,
-            price_per_unit: typeof t.price_per_unit === "number" ? t.price_per_unit : null,
-            total: typeof t.total === "number" ? t.total : null
+            quantity: toNumberLike(t.quantity),
+            price_per_unit: toNumberLike(t.price_per_unit),
+            total: toNumberLike(t.total)
         }));
 
         return {

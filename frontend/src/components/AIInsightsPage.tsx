@@ -74,9 +74,9 @@ export const AIInsightsPage: React.FC<AIInsightsPageProps> = ({
       setLoading(true)
       setError(null)
 
-      const analyticsParams = {
+      const analyticsParams: { userId: string; businessId: string } = {
         userId,
-        ...(resolvedBusinessId ? { businessId: resolvedBusinessId } : {}),
+        businessId: resolvedBusinessId || '',
       }
 
       const [dashboard, nextDay, margins, anomalies, suggestions, global, coach] = await Promise.allSettled([
@@ -287,32 +287,78 @@ export const AIInsightsPage: React.FC<AIInsightsPageProps> = ({
             <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="bg-white rounded-2xl border border-slate-200 p-4">
                 <p className="text-sm font-semibold text-slate-900 mb-2">Demand & Inventory</p>
-                <div className="text-sm text-slate-700 space-y-1">
-                  {topForecastItems.length === 0 && <p>No forecast yet.</p>}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {topForecastItems.length === 0 && inventoryRecommendations.length === 0 && inventoryAlerts.length === 0 && (
+                    <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                      No forecast yet.
+                    </div>
+                  )}
+
                   {topForecastItems.map((item: any, index: number) => (
-                    <p key={`${item.itemName}-${index}`}>{item.itemName}: {Math.round(item.predictedQty || 0)} units</p>
+                    <div key={`${item.itemName}-${index}`} className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Demand</p>
+                      <p className="text-sm font-semibold text-slate-900 mt-1">{item.itemName}</p>
+                      <p className="text-sm text-slate-700">{Math.round(item.predictedQty || 0)} units</p>
+                    </div>
                   ))}
+
                   {inventoryRecommendations.slice(0, 3).map((item: any, index: number) => (
-                    <p key={`inv-${item.itemName || index}`}>Stock {item.itemName}: {Math.round(item.suggestedStockQty || 0)}</p>
+                    <div key={`inv-${item.itemName || index}`} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Stock Target</p>
+                      <p className="text-sm font-semibold text-slate-900 mt-1">{item.itemName}</p>
+                      <p className="text-sm text-slate-700">{Math.round(item.suggestedStockQty || 0)} units</p>
+                    </div>
                   ))}
-                  {inventoryAlerts.length > 0 && <p className="text-rose-700">Alerts: {inventoryAlerts.map((a: any) => a.itemName).join(', ')}</p>}
+
+                  {inventoryAlerts.map((alert: any, index: number) => (
+                    <div key={`alert-${alert.itemName || index}`} className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-rose-700">Alert</p>
+                      <p className="text-sm font-semibold text-slate-900 mt-1">{alert.itemName}</p>
+                      <p className="text-sm text-rose-700">{alert.message || 'Low stock risk'}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
               <div className="bg-white rounded-2xl border border-slate-200 p-4">
                 <p className="text-sm font-semibold text-slate-900 mb-2">Growth Suggestions</p>
-                <div className="text-sm text-slate-700 space-y-1">
-                  <p>High-margin items: {highMarginItems.length}</p>
-                  <p>Low-margin items: {lowMarginItems.length}</p>
-                  {topCrossSell.length === 0 && topGlobal.length === 0 && topCoachTips.length === 0 && <p>No suggestions yet.</p>}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">High Margin</p>
+                    <p className="text-lg font-semibold text-slate-900 mt-1">{highMarginItems.length}</p>
+                  </div>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Low Margin</p>
+                    <p className="text-lg font-semibold text-slate-900 mt-1">{lowMarginItems.length}</p>
+                  </div>
+
+                  {topCrossSell.length === 0 && topGlobal.length === 0 && topCoachTips.length === 0 && (
+                    <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                      No suggestions yet.
+                    </div>
+                  )}
+
                   {topCrossSell.map((row: any, index: number) => (
-                    <p key={`cross-${index}`}>{Array.isArray(row.combo) ? row.combo.join(' + ') : row.reason || 'Cross-sell suggestion'}</p>
+                    <div key={`cross-${index}`} className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Cross-sell</p>
+                      <p className="text-sm text-slate-800 mt-1">{Array.isArray(row.combo) ? row.combo.join(' + ') : row.reason || 'Cross-sell suggestion'}</p>
+                    </div>
                   ))}
+
                   {topGlobal.map((item: any, index: number) => (
-                    <p key={`global-${index}`}>{item.item}: {item.reason}</p>
+                    <div key={`global-${index}`} className="rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700">Market Signal</p>
+                      <p className="text-sm font-semibold text-slate-900 mt-1">{item.item}</p>
+                      <p className="text-sm text-slate-700">{item.reason}</p>
+                    </div>
                   ))}
+
                   {topCoachTips.map((tip: any, index: number) => (
-                    <p key={`coach-${index}`}>{tip.title || 'Tip'}: {tip.message || ''}</p>
+                    <div key={`coach-${index}`} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 sm:col-span-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Coach Tip</p>
+                      <p className="text-sm font-semibold text-slate-900 mt-1">{tip.title || 'Tip'}</p>
+                      <p className="text-sm text-slate-700">{tip.message || ''}</p>
+                    </div>
                   ))}
                 </div>
               </div>

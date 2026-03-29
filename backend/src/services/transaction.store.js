@@ -120,6 +120,33 @@ async function listTransactions() {
   return [...transactions];
 }
 
+async function deleteTransactionById(transactionId) {
+  const normalizedId = String(transactionId || "").trim();
+
+  if (!normalizedId) {
+    return null;
+  }
+
+  if (isMongoReady()) {
+    if (!mongoose.Types.ObjectId.isValid(normalizedId)) {
+      return null;
+    }
+
+    return Transaction.findByIdAndDelete(normalizedId).lean();
+  }
+
+  const index = transactions.findIndex((entry) =>
+    String(entry._id || entry.id || "") === normalizedId
+  );
+
+  if (index < 0) {
+    return null;
+  }
+
+  const [deleted] = transactions.splice(index, 1);
+  return deleted || null;
+}
+
 async function listRawLogs() {
   if (isMongoReady()) {
     return RawLog.find().sort({ createdAt: -1 }).lean();
@@ -132,6 +159,7 @@ module.exports = {
   saveProcessedTransaction,
   saveRawLog,
   listTransactions,
+  deleteTransactionById,
   listRawLogs,
   buildTransactionSummary,
 };

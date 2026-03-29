@@ -5,6 +5,7 @@ const {
   saveProcessedTransaction,
   saveRawLog,
   listTransactions,
+  deleteTransactionById,
 } = require("../services/transaction.store");
 const { sendSuccess, sendError } = require("../utils/apiResponse");
 
@@ -74,6 +75,32 @@ function normalizeParserSource(value) {
   return "llm";
 }
 
+function buildEntryScopeMatcher(scopedUserId, scopedBusinessId) {
+  return (entry) => {
+    const entryBusinessId = entry.businessId
+      ? String(entry.businessId._id || entry.businessId)
+      : "";
+    const entryUserId = entry.userId
+      ? String(entry.userId._id || entry.userId)
+      : "";
+
+    if (scopedBusinessId && scopedUserId) {
+      // Include business-wide entries and legacy user-only entries.
+      return entryBusinessId === scopedBusinessId || entryUserId === scopedUserId;
+    }
+
+    if (scopedBusinessId) {
+      return entryBusinessId === scopedBusinessId;
+    }
+
+    if (scopedUserId) {
+      return entryUserId === scopedUserId;
+    }
+
+    return true;
+  };
+}
+
 /**
  * Convert LLM extraction output to transaction format
  */
@@ -81,20 +108,32 @@ function convertLLMToTransactionFormat(llmResult) {
   const sales = [];
   const expenses = [];
 
+  const toFiniteNumber = (value) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : 0;
+  };
+
   for (const transaction of llmResult.transactions || []) {
+    const quantity = toFiniteNumber(transaction.quantity);
+    const pricePerUnit = toFiniteNumber(transaction.price_per_unit);
+    const total = toFiniteNumber(transaction.total);
+    const computedTotal = total > 0
+      ? total
+      : (quantity > 0 && pricePerUnit > 0 ? quantity * pricePerUnit : 0);
+
     if (transaction.type === "sale") {
       sales.push({
         item: transaction.item,
-        qty: transaction.quantity || null,
-        price: transaction.price_per_unit || null,
-        total: transaction.total || null
+        qty: quantity > 0 ? quantity : null,
+        price: pricePerUnit > 0 ? pricePerUnit : null,
+        total: computedTotal > 0 ? computedTotal : null
       });
     } else if (transaction.type === "expense") {
       expenses.push({
         item: transaction.item,
-        amount: transaction.total || null,
-        qty: transaction.quantity || null,
-        price: transaction.price_per_unit || null
+        amount: computedTotal > 0 ? computedTotal : null,
+        qty: quantity > 0 ? quantity : null,
+        price: pricePerUnit > 0 ? pricePerUnit : null
       });
     }
   }
@@ -238,29 +277,7 @@ async function listHistory(req, res, next) {
     const sortByRecent = (left, right) =>
       new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime();
 
-    const entryMatchesScope = (entry) => {
-      const entryBusinessId = entry.businessId
-        ? String(entry.businessId._id || entry.businessId)
-        : "";
-      const entryUserId = entry.userId
-        ? String(entry.userId._id || entry.userId)
-        : "";
-
-      if (scopedBusinessId && scopedUserId) {
-        // Include business-wide entries plus legacy user-only entries.
-        return entryBusinessId === scopedBusinessId || entryUserId === scopedUserId;
-      }
-
-      if (scopedBusinessId) {
-        return entryBusinessId === scopedBusinessId;
-      }
-
-      if (scopedUserId) {
-        return entryUserId === scopedUserId;
-      }
-
-      return true;
-    };
+    const entryMatchesScope = buildEntryScopeMatcher(scopedUserId, scopedBusinessId);
 
     const scopedEntries = allTransactions.filter(
       (entry) => entryMatchesScope(entry) && matchesDateRange(entry)
@@ -284,6 +301,50 @@ async function listHistory(req, res, next) {
       count: filtered.length,
       transactions: filtered,
     }, "Transaction history fetched");
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function deleteHistoryEntry(req, res, next) {
+  try {
+    const transactionId = String(req.params?.transactionId || "").trim();
+    const { userId, businessId } = req.query || {};
+
+    if (!transactionId) {
+      return sendError(res, "transactionId is required", 400, {
+        code: "INVALID_TRANSACTION_ID",
+      });
+    }
+
+    const resolved = await resolveUserAndBusinessIds(
+      typeof userId === "string" ? userId : "",
+      typeof businessId === "string" ? businessId : ""
+    );
+    const scopedUserId = resolved?.userId ? String(resolved.userId) : "";
+    const scopedBusinessId = resolved?.businessId ? String(resolved.businessId) : "";
+    const entryMatchesScope = buildEntryScopeMatcher(scopedUserId, scopedBusinessId);
+
+    const allTransactions = await listTransactions();
+    const targetEntry = allTransactions.find((entry) => {
+      const entryId = String(entry._id || entry.id || "");
+      return entryId === transactionId && entryMatchesScope(entry);
+    });
+
+    if (!targetEntry) {
+      return sendError(res, "Transaction not found", 404, {
+        code: "TRANSACTION_NOT_FOUND",
+      });
+    }
+
+    const deleted = await deleteTransactionById(transactionId);
+    if (!deleted) {
+      return sendError(res, "Unable to delete transaction", 500, {
+        code: "TRANSACTION_DELETE_FAILED",
+      });
+    }
+
+    return sendSuccess(res, { id: transactionId }, "Transaction deleted");
   } catch (error) {
     next(error);
   }
@@ -335,4 +396,5 @@ module.exports = {
   processText,
   listHistory,
   saveTransaction,
+  deleteHistoryEntry,
 };

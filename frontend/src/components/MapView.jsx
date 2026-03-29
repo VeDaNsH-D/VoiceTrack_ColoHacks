@@ -46,14 +46,48 @@ function HeatmapLayer({ points }) {
     const map = useMap();
     const heatLayerRef = useRef(null);
 
+    const safePoints = useMemo(
+        () =>
+            Array.isArray(points)
+                ? points.filter((point) => Number.isFinite(point?.lat) && Number.isFinite(point?.lng))
+                : [],
+        [points]
+    );
+
+    const heatWeights = useMemo(() => {
+        const values = safePoints.map((point) => {
+            const weightedValue = Math.max(0, toSafeNumber(point?.weight, 0));
+            const fallbackValue = Math.max(0, toSafeNumber(point?.salesAmount, 0));
+            return weightedValue > 0 ? weightedValue : fallbackValue > 0 ? fallbackValue : 1;
+        });
+
+        if (!values.length) {
+            return { min: 0, max: 1, span: 1 };
+        }
+
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        return { min, max, span: Math.max(1, max - min) };
+    }, [safePoints]);
+
+    const layerOptions = useMemo(() => {
+        const pointCount = safePoints.length;
+
+        if (pointCount <= 25) {
+            return { radius: 70, blur: 46, maxZoom: 17, minOpacity: 0.5 };
+        }
+
+        if (pointCount <= 80) {
+            return { radius: 58, blur: 40, maxZoom: 17, minOpacity: 0.42 };
+        }
+
+        return { radius: 45, blur: 32, maxZoom: 17, minOpacity: 0.32 };
+    }, [safePoints.length]);
+
     useEffect(() => {
         if (!map) {
             return;
         }
-
-        const safePoints = Array.isArray(points)
-            ? points.filter((point) => Number.isFinite(point?.lat) && Number.isFinite(point?.lng))
-            : [];
 
         const leafletGlobal = typeof window !== "undefined" ? window.L : null;
         const leafletApi = leafletGlobal?.heatLayer ? leafletGlobal : L;
@@ -75,27 +109,26 @@ function HeatmapLayer({ points }) {
             const weightedValue = Math.max(0, toSafeNumber(point?.weight, 0));
             const fallbackValue = Math.max(0, toSafeNumber(point?.salesAmount, 0));
             const sourceWeight = weightedValue > 0 ? weightedValue : fallbackValue > 0 ? fallbackValue : 1;
-            const intensity = Math.min(sourceWeight / 500, 1);
+            const normalized = Math.min(1, Math.max(0, (sourceWeight - heatWeights.min) / heatWeights.span));
+            const intensity = Math.min(1, Math.max(0.5, 0.5 + normalized * 0.5));
 
             return [point.lat, point.lng, intensity];
         });
 
         if (!heatLayerRef.current) {
             heatLayerRef.current = leafletApi.heatLayer(heatData, {
-                radius: 35,
-                blur: 25,
-                maxZoom: 17,
-                minOpacity: 0.4,
+                radius: layerOptions.radius,
+                blur: layerOptions.blur,
+                maxZoom: layerOptions.maxZoom,
+                minOpacity: layerOptions.minOpacity,
                 gradient: {
-                    0.1: "#0000ff",
-                    0.3: "#00ffff",
-                    0.5: "#00ff00",
-                    0.7: "#ffff00",
-                    1.0: "#ff0000",
+                    0.15: "#60a5fa",
+                    0.35: "#22c55e",
+                    0.55: "#facc15",
+                    0.78: "#f97316",
+                    1.0: "#ef4444",
                 },
             }).addTo(map);
-
-            console.debug(`[HeatmapLayer] Added heatmap layer with ${heatData.length} points.`);
             return;
         }
 
@@ -105,7 +138,7 @@ function HeatmapLayer({ points }) {
                 heatLayerRef.current.redraw();
             }
         });
-    }, [map, points]);
+    }, [heatWeights.min, heatWeights.span, layerOptions.blur, layerOptions.maxZoom, layerOptions.minOpacity, layerOptions.radius, map, safePoints]);
 
     useEffect(() => {
         return () => {

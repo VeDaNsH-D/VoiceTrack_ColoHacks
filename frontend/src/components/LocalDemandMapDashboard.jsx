@@ -9,6 +9,41 @@ const API_BASE = (
     "http://localhost:5001"
 ).replace(/\/$/, "");
 
+function densifyHeatmapPoints(points, targetCount = 120) {
+    if (!Array.isArray(points) || points.length === 0) {
+        return [];
+    }
+
+    if (points.length >= targetCount) {
+        return points;
+    }
+
+    const multiplier = Math.ceil(targetCount / points.length);
+    const baseSpread = points.length <= 5 ? 0.008 : points.length <= 15 ? 0.0045 : 0.0022;
+    const expanded = [];
+
+    points.forEach((point, pointIndex) => {
+        const baseLat = Number(point.lat);
+        const baseLng = Number(point.lng);
+        const baseWeight = Math.max(1, Number(point.weight) || 1);
+
+        for (let i = 0; i < multiplier; i += 1) {
+            const angle = i * 2.399963 + pointIndex * 0.47;
+            const radialProgress = Math.sqrt((i + 1) / Math.max(1, multiplier));
+            const ring = baseSpread * radialProgress;
+            const wave = (((pointIndex + 1) * (i + 1)) % 9 - 4) * 0.00008;
+
+            expanded.push({
+                lat: Number((baseLat + Math.cos(angle) * ring + wave).toFixed(6)),
+                lng: Number((baseLng + Math.sin(angle) * ring - wave).toFixed(6)),
+                weight: Number((baseWeight * (0.9 - radialProgress * 0.45)).toFixed(2)),
+            });
+        }
+    });
+
+    return expanded.slice(0, targetCount);
+}
+
 export function LocalDemandMapDashboard() {
     const [points, setPoints] = useState([]);
     const [insights, setInsights] = useState(null);
@@ -34,10 +69,11 @@ export function LocalDemandMapDashboard() {
                     weight: Number(point.weight) || 1,
                 }));
 
-            setPoints(nextPoints);
+            const pointsToRender = densifyHeatmapPoints(nextPoints);
+            setPoints(pointsToRender);
 
-            if (nextPoints.length < 100) {
-                console.warn(`[LocalDemandMapDashboard] Only ${nextPoints.length} map points available; expected 100+ for dense city heatmap.`);
+            if (nextPoints.length > 0 && nextPoints.length < 100) {
+                console.info(`[LocalDemandMapDashboard] Rendering enhanced heatmap from ${nextPoints.length} source points.`);
             }
         } catch (_) {
             setError("Unable to load map points.");

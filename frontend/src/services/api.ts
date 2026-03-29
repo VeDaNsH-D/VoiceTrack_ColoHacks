@@ -449,6 +449,24 @@ export async function getTransactionHistory(params: {
   return unwrapApiResponse<HistoryResult>(response.data)
 }
 
+export async function deleteTransactionHistoryEntry(params: {
+  transactionId: string
+  userId?: string
+  businessId?: string
+}): Promise<{ id: string }> {
+  const { transactionId, userId, businessId } = params
+  const response = await apiClient.delete<ApiEnvelope<{ id: string }> | { id: string }>(
+    `/api/transactions/history/${encodeURIComponent(transactionId)}`,
+    {
+      params: {
+        ...(userId ? { userId } : {}),
+        ...(businessId ? { businessId } : {}),
+      },
+    }
+  )
+  return unwrapApiResponse<{ id: string }>(response.data)
+}
+
 export async function getInsights(params: { userId?: string; businessId?: string } = {}): Promise<InsightsResult> {
   const response = await apiClient.get<ApiEnvelope<InsightsResult> | InsightsResult>('/api/insights', {
     params,

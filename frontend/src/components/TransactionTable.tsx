@@ -4,10 +4,13 @@ import type { HistoryEntry } from '../services/api'
 interface TransactionTableProps {
     transactions: HistoryEntry[]
     language: 'EN' | 'HI'
+    deletingTransactionId?: string | null
+    onDeleteTransaction?: (transactionId: string) => void
 }
 
 type LedgerRow = {
     key: string
+    transactionId: string
     createdAt: string
     item: string
     quantity: number | null
@@ -60,6 +63,7 @@ function toLedgerRows(transactions: HistoryEntry[]): LedgerRow[] {
             const price = Number(sale.price || 0)
             baseRows.push({
                 key: `${transaction.id || transactionIndex}-sale-${saleIndex}`,
+                transactionId: String(transaction.id || ''),
                 createdAt: transaction.createdAt,
                 item: sale.item || 'Sale item',
                 quantity: qty,
@@ -75,6 +79,7 @@ function toLedgerRows(transactions: HistoryEntry[]): LedgerRow[] {
             const amount = Number(expense.amount || 0)
             baseRows.push({
                 key: `${transaction.id || transactionIndex}-expense-${expenseIndex}`,
+                transactionId: String(transaction.id || ''),
                 createdAt: transaction.createdAt,
                 item: expense.item || 'Expense item',
                 quantity: null,
@@ -89,6 +94,7 @@ function toLedgerRows(transactions: HistoryEntry[]): LedgerRow[] {
         if (!baseRows.length) {
             baseRows.push({
                 key: `${transaction.id || transactionIndex}-empty`,
+                transactionId: String(transaction.id || ''),
                 createdAt: transaction.createdAt,
                 item: 'No line items',
                 quantity: null,
@@ -112,7 +118,12 @@ function toLedgerRows(transactions: HistoryEntry[]): LedgerRow[] {
     return rows
 }
 
-export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions, language }) => {
+export const TransactionTable: React.FC<TransactionTableProps> = ({
+    transactions,
+    language,
+    deletingTransactionId = null,
+    onDeleteTransaction,
+}) => {
     const ledgerRows = useMemo(() => toLedgerRows(transactions), [transactions])
 
     if (!ledgerRows.length) {
@@ -136,6 +147,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                         <th className="px-4 py-3 text-left text-gray-600 text-sm uppercase">Type</th>
                         <th className="px-4 py-3 text-left text-gray-600 text-sm uppercase">Input Prompt</th>
                         <th className="px-4 py-3 text-left text-gray-600 text-sm uppercase">Net Profit</th>
+                        <th className="px-4 py-3 text-left text-gray-600 text-sm uppercase">Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -179,6 +191,21 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                                             }`}
                                     >
                                         {formatCurrency(row.netAmount)}
+                                    </td>
+                                )}
+
+                                {row.isFirstRow && (
+                                    <td rowSpan={row.rowSpan} className="px-4 py-3 align-top">
+                                        <button
+                                            type="button"
+                                            onClick={() => onDeleteTransaction?.(row.transactionId)}
+                                            disabled={!onDeleteTransaction || deletingTransactionId === row.transactionId}
+                                            className="rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {deletingTransactionId === row.transactionId
+                                                ? (language === 'EN' ? 'Deleting...' : 'हटाया जा रहा है...')
+                                                : (language === 'EN' ? 'Delete' : 'हटाएं')}
+                                        </button>
                                     </td>
                                 )}
                             </tr>

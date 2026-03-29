@@ -24,6 +24,24 @@ function normalizeForIntent(message) {
   return normalized || rawMessage.toLowerCase();
 }
 
+function isSimpleGreeting(text) {
+  const normalized = String(text || "").trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  const compact = normalized.replace(/[!,.?]/g, "").trim();
+  return /^(hi+|hello+|hey+|namaste|namaskar|नमस्ते|नमस्कार)$/.test(compact);
+}
+
+function buildSimpleGreetingReply(language) {
+  if (language === "hi") {
+    return "नमस्ते! बताइए आपको क्या चाहिए।";
+  }
+
+  return "Hi! Ask me what you need.";
+}
+
 function formatRupee(value) {
   const amount = Number(value || 0);
   return `₹${Math.round(amount).toLocaleString("en-IN")}`;
@@ -118,6 +136,23 @@ async function queryAssistant(req, res) {
   try {
     const rawMessage = message.trim();
     const replyLanguage = detectReplyLanguage(rawMessage);
+
+    if (isSimpleGreeting(rawMessage)) {
+      return sendSuccess(
+        res,
+        {
+          intent: { intent: "GREETING" },
+          queryResult: { type: "greeting" },
+          contextDocs: [],
+          reply: buildSimpleGreetingReply(replyLanguage),
+          audioNeeded: true,
+          needsClarification: false,
+          clarificationQuestion: null,
+        },
+        "Assistant greeting handled"
+      );
+    }
+
     const normalizedMessage = normalizeForIntent(rawMessage);
     const intent = await extractIntent(normalizedMessage || rawMessage);
     const queryResult = await handleQuery(userId.trim(), intent);
