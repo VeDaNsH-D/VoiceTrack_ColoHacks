@@ -11,6 +11,10 @@ const { generateVoiceReply } = require("../services/assistantReply");
 const {
   evaluateExtractionConfidence,
 } = require("../services/confidenceEngine");
+const { extractIntent, inferIntentFromRules } = require("../services/intentService");
+const { handleQuery } = require("../services/queryService");
+const { generateResponse } = require("../services/responseService");
+const { getRelevantContext } = require("../services/vectorService");
 const {
   saveProcessedTransaction,
   saveRawLog,
@@ -88,6 +92,143 @@ function buildRecordedResponse(transactions) {
   });
   lines.push("", `Total entries: ${transactions.length}`);
   return lines.join("\n");
+}
+
+function detectLanguage(text) {
+  const input = String(text || "");
+
+  if (/[\u0900-\u097F]/.test(input)) {
+    return "hi";
+  }
+
+  if (/\b(aaj|kal|kitna|kitni|kitne|tumne|maal|becha|bika|biki|hai|haan|nahi)\b/i.test(input)) {
+    return "hi";
+  }
+
+  return "en";
+}
+
+function looksLikeNonTransactionQuery(text) {
+  const value = String(text || "").trim().toLowerCase();
+  if (!value) {
+    return false;
+  }
+
+  const transactionActionMarkers = [
+    "record",
+    "add",
+    "save",
+    "becha",
+    "bechi",
+    "sold",
+    "expense entry",
+    "kharcha likh",
+    "entry",
+  ];
+
+  const analyticsMarkers = [
+    "profit",
+    "loss",
+    "expense",
+    "expenses",
+    "sales",
+    "total",
+    "top product",
+    "transaction count",
+    "insight",
+    "trend",
+    "fayda",
+    "nuksan",
+    "bikri",
+    "kul",
+    "kitna",
+    "kitni",
+  ];
+
+  const questionMarkers = ["?", "what", "how", "why", "show", "tell", "kya", "kaise", "batao", "dikhao"];
+
+  const hasTransactionAction = transactionActionMarkers.some((marker) => value.includes(marker));
+  const hasAnalyticsIntent = analyticsMarkers.some((marker) => value.includes(marker));
+  const hasQuestionShape = questionMarkers.some((marker) => value.includes(marker));
+
+  const hasTransactionNumbers =
+    /\b\d+(?:\.\d+)?\s*(?:rs|rupees|₹|qty|quantity|unit|pieces|pc|kg|ltr|litre|लीटर|किलो)\b/i.test(value) ||
+    /\b\d+(?:\.\d+)?\s+\w+\s+(?:for|at|@|ke|का|की|के)\s*\d+(?:\.\d+)?\b/i.test(value);
+
+  // Explicit transaction-like numeric utterances should stay in transaction flow.
+  if (hasTransactionAction && hasTransactionNumbers && !hasQuestionShape) {
+    return false;
+  }
+
+  if (hasTransactionAction && !hasQuestionShape) {
+    return false;
+  }
+
+  return hasAnalyticsIntent || hasQuestionShape;
+}
+
+async function resolveNonTransactionVoiceReply({ userId, transcript, languageHint }) {
+  const cleanedTranscript = String(transcript || "").trim();
+  if (!cleanedTranscript || !userId) {
+    return null;
+  }
+
+  let intentData;
+  try {
+    intentData = await extractIntent(cleanedTranscript);
+  } catch (_) {
+    intentData = inferIntentFromRules(cleanedTranscript);
+  }
+
+  const intent = String(intentData?.intent || "UNKNOWN").toUpperCase();
+  let queryResult = { type: "unknown", value: 0 };
+  try {
+    queryResult = await handleQuery(String(userId), intentData || {});
+  } catch (_) {
+    queryResult = { type: "unknown", value: 0 };
+  }
+
+  let contextDocs = [];
+  try {
+    contextDocs = await getRelevantContext(String(userId), cleanedTranscript);
+  } catch (_) {
+    contextDocs = [];
+  }
+
+  let response;
+  try {
+    response = await generateResponse(
+      cleanedTranscript,
+      queryResult,
+      contextDocs.join("\n"),
+      languageHint || detectLanguage(cleanedTranscript)
+    );
+  } catch (_) {
+    response = {
+      reply:
+        (languageHint || detectLanguage(cleanedTranscript)) === "hi"
+          ? "Main aapke sawal ka reply dene ke liye ready hoon. Kripya sawaal thoda specific batayein, jaise profit, expense ya sales."
+          : "I can help with that. Please ask a specific question like profit, expense, or sales for today/week/month.",
+    };
+  }
+
+  const replyText = String(response?.reply || "").trim();
+  if (!replyText) {
+    return null;
+  }
+
+  const audioUrl = await generateSpeech(replyText, languageHint || detectLanguage(cleanedTranscript));
+
+  return {
+    replyText,
+    audioUrl,
+    queryMeta: {
+      intentResolved: intent !== "UNKNOWN",
+      intent: intentData,
+      queryResult,
+      contextCount: contextDocs.length,
+    },
+  };
 }
 
 async function saveLedgerEntry({
@@ -168,6 +309,40 @@ router.post("/process", upload.single("audio"), async (req, res, next) => {
       return sendError(res, "Provide transcript text or audio file", 400, {
         code: "MISSING_TRANSCRIPT_INPUT",
       });
+    }
+
+    if (looksLikeNonTransactionQuery(rawTranscript)) {
+      const assistantReply = await resolveNonTransactionVoiceReply({
+        userId,
+        transcript: rawTranscript,
+        languageHint: req.body?.languageHint || null,
+      });
+
+      if (assistantReply) {
+        return sendSuccess(
+          res,
+          {
+            status: "agent_reply",
+            rawTranscript,
+            normalizedTranscript: rawTranscript,
+            transactions: [],
+            overallConfidence: 1,
+            responseMessage: assistantReply.replyText,
+            audioUrl: assistantReply.audioUrl,
+            stt: sttResult || null,
+            parser: {
+              modelUsed: "assistant-query",
+            },
+            assistantReply: {
+              modelUsed: "assistant-query",
+              languageStyle: req.body?.languageHint || detectLanguage(rawTranscript),
+            },
+            queryMeta: assistantReply.queryMeta,
+            savedToHistory: false,
+          },
+          "Voice query answered without transaction save"
+        );
+      }
     }
 
     const parsed = await parseMultipleTransactions({

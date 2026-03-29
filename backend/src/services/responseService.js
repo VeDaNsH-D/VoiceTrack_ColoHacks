@@ -80,11 +80,24 @@ function buildFallbackReply(userMessage, queryResult, languageHint = "en") {
       }
 
       return `Your total sales are ${formatCurrency(queryResult?.value)}.`;
+    case "next_day_sales": {
+      const trend = String(queryResult?.trend || "flat").toLowerCase();
+      const trendText = trend === "up"
+        ? (language === "hi" ? "ट्रेंड ऊपर है" : "trend is up")
+        : trend === "down"
+          ? (language === "hi" ? "ट्रेंड थोड़ा नीचे है" : "trend is slightly down")
+          : (language === "hi" ? "ट्रेंड स्थिर है" : "trend is stable");
+
+      if (language === "hi") {
+        return `अगले दिन की सेल्स लगभग ${formatCurrency(queryResult?.value)} हो सकती है, ${trendText}।`;
+      }
+      return `Next day sales may be around ${formatCurrency(queryResult?.value)}, ${trendText}.`;
+    }
     case "product_sales":
       if (language === "hi") {
-        return `${capitalizeWords(queryResult?.product)} की ${Number(queryResult?.quantity) || 0} यूनिट बिकीं।`;
+        return `${capitalizeWords(queryResult?.product)} की ${Number(queryResult?.quantity) || 0} यूनिट बिकीं, कुल ${formatCurrency(queryResult?.amount)}।`;
       }
-      return `${capitalizeWords(queryResult?.product)} ke ${Number(queryResult?.quantity) || 0} pieces bike.`;
+      return `${capitalizeWords(queryResult?.product)} ke ${Number(queryResult?.quantity) || 0} pieces bike, total ${formatCurrency(queryResult?.amount)}.`;
     case "top_product":
       if (language === "hi") {
         return `${capitalizeWords(queryResult?.product)} सबसे ज्यादा बिका, ${Number(queryResult?.quantity) || 0} यूनिट।`;

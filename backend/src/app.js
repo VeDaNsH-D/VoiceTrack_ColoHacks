@@ -10,6 +10,7 @@ const insightsRoutes = require("./routes/insights.routes");
 const analyticsEngineRoutes = require("./routes/analyticsEngine.routes");
 const voiceRoutes = require("./routes/voiceRoute");
 const areaInsightsRoutes = require("./routes/areaInsights.routes");
+const agentRoutes = require("./routes/agent");
 const errorMiddleware = require("./middlewares/error.middleware");
 const authMiddleware = require("./middlewares/auth.middleware");
 const { sendSuccess, sendError } = require("./utils/apiResponse");
@@ -45,6 +46,7 @@ app.use("/api/insights", insightsRoutes);
 app.use("/api/analytics", analyticsEngineRoutes);
 app.use("/api/voice", authMiddleware, voiceRoutes);
 app.use("/api", areaInsightsRoutes);
+app.use("/agent", agentRoutes);
 
 app.use((req, res) => {
   return sendError(res, "Route not found", 404, { code: "ROUTE_NOT_FOUND" });

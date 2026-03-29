@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Transaction = require("../models/transaction.model");
 const User = require("../models/user.model");
+const { getInsightsSummary } = require("./analytics.service");
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -127,6 +128,7 @@ async function getProductSales(filter, product) {
       $group: {
         _id: null,
         quantity: { $sum: "$sales.qty" },
+        amount: { $sum: { $multiply: [{ $ifNull: ["$sales.qty", 0] }, { $ifNull: ["$sales.price", 0] }] } },
       },
     },
   ]);
@@ -135,6 +137,7 @@ async function getProductSales(filter, product) {
     type: "product_sales",
     product,
     quantity: result?.quantity || 0,
+    amount: result?.amount || 0,
   };
 }
 
@@ -185,6 +188,15 @@ async function getProfit(filter) {
   };
 }
 
+async function getNextDaySalesForecast(userId) {
+  const summary = await getInsightsSummary(userId);
+  return {
+    type: "next_day_sales",
+    value: Number(summary?.forecast?.nextDaySales || 0),
+    trend: String(summary?.forecast?.trend || "flat"),
+  };
+}
+
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -202,6 +214,8 @@ async function handleQuery(userId, intentData) {
   switch (intent) {
     case "GET_TOTAL_SALES":
       return getTotalSales(filter);
+    case "GET_NEXT_DAY_SALES":
+      return getNextDaySalesForecast(userId);
     case "GET_PRODUCT_SALES":
       return getProductSales(filter, normalizedProduct);
     case "GET_TOP_PRODUCT":

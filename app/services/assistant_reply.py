@@ -10,6 +10,362 @@ from app.utils.logger import logger
 from app.services.conversation_state import get_pending_conversation
 
 
+def _unwrap_backend_payload(payload: Any) -> Dict[str, Any]:
+    if isinstance(payload, dict) and "success" in payload and "data" in payload:
+        data = payload.get("data")
+        return data if isinstance(data, dict) else {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _fetch_user_context_snapshot(user_id: str) -> Dict[str, Any]:
+    base_url = BACKEND_BASE_URL.rstrip("/")
+    snapshot: Dict[str, Any] = {
+        "transaction_count": 0,
+        "totals": {"sales": 0, "expenses": 0},
+        "recent_transactions": [],
+        "top_items": [],
+        "dashboard": {
+            "available": False,
+            "summary": {},
+        },
+        "heatmap": {
+            "available": False,
+            "top_areas": [],
+        },
+        "has_context": False,
+    }
+
+    try:
+        history_response = requests.get(
+            f"{base_url}/api/transactions/history",
+            params={"userId": user_id, "limit": 30},
+            timeout=15,
+        )
+        if history_response.status_code < 400:
+            history_data = _unwrap_backend_payload(history_response.json() or {})
+            transactions = history_data.get("transactions") or []
+            snapshot["transaction_count"] = int(history_data.get("count") or len(transactions))
+
+            recent_transactions = []
+            item_totals: Dict[str, float] = {}
+            for tx in transactions[:8]:
+                raw_text = str(tx.get("rawText") or "").strip()
+                if raw_text:
+                    recent_transactions.append(raw_text)
+
+                for sale in tx.get("sales") or []:
+                    item = str(sale.get("item") or "").strip().lower()
+                    qty = float(_safe_number(sale.get("qty")))
+                    if item:
+                        item_totals[item] = item_totals.get(item, 0.0) + qty
+
+            snapshot["recent_transactions"] = recent_transactions[:5]
+            snapshot["top_items"] = [
+                name for name, _ in sorted(item_totals.items(), key=lambda row: row[1], reverse=True)[:4]
+            ]
+    except Exception as exc:
+        logger.warning("Could not fetch transaction context snapshot: %s", exc)
+
+    try:
+        insights_response = requests.get(
+            f"{base_url}/api/insights",
+            params={"userId": user_id},
+            timeout=12,
+        )
+        if insights_response.status_code < 400:
+            insights_data = _unwrap_backend_payload(insights_response.json() or {})
+            totals = insights_data.get("totals") if isinstance(insights_data, dict) else {}
+            if isinstance(totals, dict):
+                snapshot["totals"] = {
+                    "sales": float(totals.get("sales") or 0.0),
+                    "expenses": float(totals.get("expenses") or 0.0),
+                }
+    except Exception as exc:
+        logger.warning("Could not fetch insights context snapshot: %s", exc)
+
+    try:
+        dashboard_response = requests.get(
+            f"{base_url}/api/analytics/dashboard",
+            params={"userId": user_id},
+            timeout=15,
+        )
+        if dashboard_response.status_code < 400:
+            dashboard_data = _unwrap_backend_payload(dashboard_response.json() or {})
+            dashboard_payload = dashboard_data.get("dashboard") if isinstance(dashboard_data, dict) else {}
+
+            if isinstance(dashboard_payload, dict):
+                summary = {}
+
+                kpis = dashboard_payload.get("kpis")
+                if isinstance(kpis, dict):
+                    summary["kpis"] = {
+                        "revenue": float(kpis.get("totalRevenue") or 0.0),
+                        "profit": float(kpis.get("totalProfit") or 0.0),
+                        "margin": float(kpis.get("profitMargin") or 0.0),
+                    }
+
+                predictions = dashboard_payload.get("predictions")
+                if isinstance(predictions, dict):
+                    summary["predictions"] = {
+                        "nextDaySales": float(predictions.get("nextDaySales") or 0.0),
+                        "confidence": float(predictions.get("confidence") or 0.0),
+                    }
+
+                alerts = dashboard_payload.get("alerts")
+                if isinstance(alerts, dict):
+                    summary["alerts"] = {
+                        "high": int(alerts.get("high") or 0),
+                        "medium": int(alerts.get("medium") or 0),
+                        "low": int(alerts.get("low") or 0),
+                    }
+
+                if summary:
+                    snapshot["dashboard"] = {
+                        "available": True,
+                        "summary": summary,
+                    }
+    except Exception as exc:
+        logger.warning("Could not fetch dashboard context snapshot: %s", exc)
+
+    try:
+        map_points_response = requests.get(
+            f"{base_url}/api/map-points",
+            timeout=12,
+        )
+        if map_points_response.status_code < 400:
+            map_points_data = _unwrap_backend_payload(map_points_response.json() or {})
+            points = map_points_data.get("points") if isinstance(map_points_data, dict) else []
+            ranked_points: List[Dict[str, Any]] = []
+
+            if isinstance(points, list):
+                for point in points:
+                    if not isinstance(point, dict):
+                        continue
+                    lat = point.get("lat")
+                    lng = point.get("lng")
+                    if lat is None or lng is None:
+                        continue
+                    try:
+                        parsed_lat = float(lat)
+                        parsed_lng = float(lng)
+                    except (TypeError, ValueError):
+                        continue
+                    ranked_points.append({
+                        "name": str(point.get("name") or point.get("area") or "Area").strip() or "Area",
+                        "lat": parsed_lat,
+                        "lng": parsed_lng,
+                        "activity": float(point.get("activity") or point.get("weight") or point.get("count") or 0.0),
+                    })
+
+            ranked_points = sorted(
+                ranked_points,
+                key=lambda entry: entry.get("activity", 0.0),
+                reverse=True,
+            )
+            snapshot["heatmap"] = {
+                "available": bool(ranked_points),
+                "top_areas": ranked_points[:5],
+            }
+    except Exception as exc:
+        logger.warning("Could not fetch heatmap map-points snapshot: %s", exc)
+
+    try:
+        top_areas = (snapshot.get("heatmap") or {}).get("top_areas") or []
+        primary_area = top_areas[0] if isinstance(top_areas, list) and top_areas else None
+        if isinstance(primary_area, dict):
+            area_response = requests.get(
+                f"{base_url}/api/area-insights",
+                params={
+                    "lat": primary_area.get("lat"),
+                    "lng": primary_area.get("lng"),
+                    "radiusKm": 2,
+                },
+                timeout=15,
+            )
+            if area_response.status_code < 400:
+                area_data = _unwrap_backend_payload(area_response.json() or {})
+                top_items = area_data.get("topItems") if isinstance(area_data, dict) else []
+                trends = area_data.get("trends") if isinstance(area_data, dict) else {}
+                recommendations = area_data.get("recommendations") if isinstance(area_data, dict) else []
+
+                snapshot["heatmap"] = {
+                    "available": True,
+                    "top_areas": top_areas,
+                    "primary_area": {
+                        "name": str(area_data.get("areaName") or primary_area.get("name") or "Area").strip() or "Area",
+                        "transaction_count": int(area_data.get("transactionCount") or 0),
+                        "top_items": top_items[:5] if isinstance(top_items, list) else [],
+                        "trend_summary": trends if isinstance(trends, dict) else {},
+                        "recommendations": recommendations[:5] if isinstance(recommendations, list) else [],
+                    },
+                }
+    except Exception as exc:
+        logger.warning("Could not fetch area-insights snapshot: %s", exc)
+
+    snapshot["has_context"] = bool(
+        snapshot["transaction_count"]
+        or snapshot["recent_transactions"]
+        or snapshot["totals"].get("sales")
+        or snapshot["totals"].get("expenses")
+        or (snapshot.get("dashboard") or {}).get("available")
+        or (snapshot.get("heatmap") or {}).get("available")
+    )
+    return snapshot
+
+
+def _build_pipeline_results_from_snapshot(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    totals = snapshot.get("totals") if isinstance(snapshot.get("totals"), dict) else {}
+    dashboard = snapshot.get("dashboard") if isinstance(snapshot.get("dashboard"), dict) else {}
+    heatmap = snapshot.get("heatmap") if isinstance(snapshot.get("heatmap"), dict) else {}
+
+    return {
+        "insights": {
+            "transaction_count": int(snapshot.get("transaction_count") or 0),
+            "totals": {
+                "sales": float(totals.get("sales") or 0.0),
+                "expenses": float(totals.get("expenses") or 0.0),
+            },
+            "top_items": (snapshot.get("top_items") or [])[:5],
+        },
+        "transaction_history": {
+            "recent_transactions": (snapshot.get("recent_transactions") or [])[:5],
+        },
+        "dashboard": {
+            "available": bool(dashboard.get("available")),
+            "summary": dashboard.get("summary") if isinstance(dashboard.get("summary"), dict) else {},
+        },
+        "heatmap": {
+            "available": bool(heatmap.get("available")),
+            "top_areas": (heatmap.get("top_areas") or [])[:5],
+            "primary_area": heatmap.get("primary_area") if isinstance(heatmap.get("primary_area"), dict) else {},
+        },
+        "has_context": bool(snapshot.get("has_context")),
+    }
+
+
+def get_pipeline_results(user_id: str) -> Dict[str, Any]:
+    snapshot = _fetch_user_context_snapshot(user_id)
+    return _build_pipeline_results_from_snapshot(snapshot)
+
+
+def _build_agent_mode_prompts(user_id: str, transcript: str) -> Tuple[str, str]:
+    style = _detect_language_style(transcript)
+    style_instruction = {
+        "hindi": "Hindi",
+        "hinglish": "Hinglish",
+        "english": "English",
+    }.get(style, "Hinglish")
+
+    context_snapshot = _fetch_user_context_snapshot(user_id)
+
+    system_prompt = (
+        "You are a personal AI business agent for a small business owner in India. "
+        "Act like you know the user's history through the supplied context snapshot. "
+        "Be concise, practical, and speech-friendly. "
+        "Never invent facts; clearly say when context is missing."
+    )
+
+    user_prompt = (
+        f"User ID: {user_id}\n"
+        f"Reply language style: {style_instruction}\n"
+        f"User question: {transcript.strip()}\n"
+        f"Context snapshot: {json.dumps(context_snapshot, ensure_ascii=False)}\n"
+        "Instructions:\n"
+        "1) Answer using whichever pipeline context is relevant: insights, transaction history, dashboard analytics, and heatmap/area insights.\n"
+        "2) If multiple pipelines are relevant, merge them into one concise answer.\n"
+        "3) If answer depends on unavailable data, say what is missing and offer next step.\n"
+        "4) Keep the reply <= 60 words and suitable for TTS output.\n"
+        "Return only the final reply text."
+    )
+    return system_prompt, user_prompt
+
+
+def _generate_openai_agent_reply(user_id: str, transcript: str) -> Optional[str]:
+    if not OPENAI_API_KEY:
+        return None
+
+    system_prompt, user_prompt = _build_agent_mode_prompts(user_id, transcript)
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    body = {
+        "model": OPENAI_MODEL,
+        "temperature": 0.25,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+    }
+
+    try:
+        base_url = OPENAI_BASE_URL.rstrip("/")
+        response = requests.post(
+            f"{base_url}/chat/completions",
+            headers=headers,
+            json=body,
+            timeout=15,
+        )
+        if response.status_code >= 400:
+            logger.warning("OpenAI agent-mode reply failed (%s): %s", response.status_code, response.text)
+            return None
+
+        content = (
+            (response.json() or {})
+            .get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+        )
+        reply = str(content or "").strip()
+        return reply or None
+    except Exception as exc:
+        logger.warning("OpenAI agent-mode reply unavailable: %s", exc)
+        return None
+
+
+def _query_backend_assistant(user_id: str, transcript: str) -> Optional[str]:
+    backend_url = f"{BACKEND_BASE_URL.rstrip('/')}/api/assistant/query"
+    payload = {
+        "userId": user_id,
+        "message": transcript,
+    }
+
+    try:
+        response = requests.post(backend_url, json=payload, timeout=40)
+        if response.status_code >= 400:
+            logger.warning("Backend assistant endpoint failed (%s): %s", response.status_code, response.text)
+            return None
+
+        response_data = _unwrap_backend_payload(response.json() or {})
+        reply = str(response_data.get("reply") or "").strip()
+        return reply or None
+    except Exception as exc:
+        logger.warning("Backend assistant endpoint unavailable: %s", exc)
+        return None
+
+
+def _query_backend_chat(user_id: str, message: str, stt_provider: str) -> Optional[str]:
+    backend_url = f"{BACKEND_BASE_URL.rstrip('/')}{BACKEND_CHAT_PATH}"
+    payload = {
+        "userId": user_id,
+        "message": message,
+        "source": "voice",
+        "sttProvider": stt_provider,
+    }
+
+    response = requests.post(backend_url, json=payload, timeout=60)
+
+    if response.status_code >= 400:
+        logger.error("Backend chat failed (%s): %s", response.status_code, response.text)
+        return None
+
+    response_data = _unwrap_backend_payload(response.json() or {})
+    reply = response_data.get("reply")
+    if not isinstance(reply, str) or not reply.strip():
+        return None
+    return reply.strip()
+
+
 def _has_finalized_transaction(structured_data: Optional[Dict[str, Any]]) -> bool:
     if not isinstance(structured_data, dict):
         return False
@@ -386,6 +742,7 @@ def generate_assistant_reply(
     transcript: str,
     structured_data: Optional[Dict[str, Any]] = None,
     stt_provider: str = "sarvam",
+    mode: str = "auto",
 ) -> str:
     cleaned_user_id = str(user_id or "").strip()
     cleaned_transcript = str(transcript or "").strip()
@@ -408,27 +765,37 @@ def generate_assistant_reply(
             return llm_reply
         return _build_grounded_reply(cleaned_transcript, structured_data)
 
+    agent_mode = mode == "agent" or mode == "auto"
+    if agent_mode:
+        llm_agent_reply = _generate_openai_agent_reply(
+            cleaned_user_id, cleaned_transcript)
+        if llm_agent_reply:
+            return llm_agent_reply
+
+        backend_assistant_reply = _query_backend_assistant(
+            cleaned_user_id, cleaned_transcript)
+        if backend_assistant_reply:
+            return backend_assistant_reply
+
+        backend_chat_reply = _query_backend_chat(
+            cleaned_user_id, cleaned_transcript, stt_provider)
+        if backend_chat_reply:
+            return backend_chat_reply
+
+        style = _detect_language_style(cleaned_transcript)
+        if style == "hindi":
+            return "Maine aapka sawaal samjha. Mere paas abhi exact data limited hai, lekin main aapke recent records ke basis par help kar sakta hoon."
+        if style == "hinglish":
+            return "Maine aapka question samjha. Exact data abhi limited hai, but main aapke recent records ke basis par guide kar sakta hoon."
+        return "I understood your question. Exact data is limited right now, but I can still guide you based on your recent records."
+
     # Last fallback: only query backend chat when parsed transaction data is unavailable.
-    backend_url = f"{BACKEND_BASE_URL.rstrip('/')}{BACKEND_CHAT_PATH}"
-    payload = {
-        "userId": cleaned_user_id,
-        "message": _build_llm_message(cleaned_transcript, structured_data),
-        "source": "voice",
-        "sttProvider": stt_provider,
-    }
+    llm_transaction_message = _build_llm_message(cleaned_transcript, structured_data)
+    logger.info("Forwarding transaction-aware reply generation to backend chat")
+    backend_reply = _query_backend_chat(
+        cleaned_user_id, llm_transaction_message, stt_provider)
 
-    logger.info(
-        "Forwarding conversation reply generation to backend chat: %s", backend_url)
-    response = requests.post(backend_url, json=payload, timeout=60)
+    if backend_reply:
+        return backend_reply
 
-    if response.status_code >= 400:
-        logger.error("Backend chat failed (%s): %s",
-                     response.status_code, response.text)
-        raise RuntimeError(
-            f"Backend chat failed with status {response.status_code}")
-
-    reply = (response.json() or {}).get("reply")
-    if not isinstance(reply, str) or not reply.strip():
-        raise RuntimeError("Backend chat returned an empty reply")
-
-    return reply.strip()
+    raise RuntimeError("Backend chat returned an empty reply")

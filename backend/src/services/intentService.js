@@ -13,8 +13,19 @@ Return ONLY JSON. No explanation.
 
 Understand Hindi, English, and Hinglish.`;
 
+const systemPromptWithRules = `${systemPrompt}
+
+Intent mapping rules:
+- If user asks for a specific item's sale value/rupees/amount, use GET_PRODUCT_SALES and set product.
+- Use GET_SALES_COUNT only when user asks overall transaction count, not item-specific amount.
+- If query includes product name plus words like "rupaye", "rupees", "amount", "kitne rupis", "की थी", prefer GET_PRODUCT_SALES.
+
+Output JSON shape:
+{"intent":"GET_PRODUCT_SALES|GET_TOTAL_SALES|GET_TOP_PRODUCT|GET_SALES_COUNT|GET_PROFIT|UNKNOWN","timeRange":"today|yesterday|last_week|last_month|custom|null","product":"string|null"}`;
+
 const ALLOWED_INTENTS = new Set([
   "GET_TOTAL_SALES",
+  "GET_NEXT_DAY_SALES",
   "GET_PRODUCT_SALES",
   "GET_TOP_PRODUCT",
   "GET_SALES_COUNT",
@@ -53,6 +64,44 @@ const PROFIT_PATTERNS = [
 const PRODUCT_SALES_PATTERNS = [
   /\b(kitne bike|kitna bika|kitni biki|sold|bika|biki|कितने बिके|कितना बिका|कितनी बिकी|बिका|बिकी|बिके)\b/i,
 ];
+
+const PRODUCT_AMOUNT_PATTERNS = [
+  /\b(kitne rup|kitne rupees|kitne rupaye|rupees|rupaye|rupis|amount|की थी|का था|की थी\?)\b/i,
+  /(रुपये|रुपए|रुपीस|रुपया|amount|की थी|का था)/i,
+];
+
+const NEXT_DAY_SALES_PATTERNS = [
+  /\b(next day|tomorrow|nextday|forecast|prediction|estimate|कल की|कल का|अगले दिन|नेक्स्ट डे|हो सकती|ho sakti|kitni ho sakti)\b/i,
+];
+
+const NEXT_DAY_SALES_TERMS = [
+  "next day",
+  "nextday",
+  "tomorrow",
+  "forecast",
+  "prediction",
+  "estimate",
+  "नेक्स्ट डे",
+  "अगले दिन",
+  "कल की",
+  "कल का",
+  "हो सकती",
+  "कितनी हो सकती",
+  "kitni ho sakti",
+  "next day ki sales",
+];
+
+function isNextDayForecastQuery(message) {
+  const normalizedMessage = preprocessText(String(message || "")).trim().toLowerCase();
+  if (!normalizedMessage) {
+    return false;
+  }
+
+  return (
+    NEXT_DAY_SALES_PATTERNS.some((pattern) => pattern.test(normalizedMessage))
+    || containsAnyPhrase(normalizedMessage, NEXT_DAY_SALES_TERMS)
+  );
+}
 
 const TOP_PRODUCT_TERMS = ["सबसे ज्यादा", "सबसे अधिक", "टॉप प्रोडक्ट", "सबसे बिका"];
 const SALES_COUNT_TERMS = ["लेनदेन", "ट्रांजैक्शन", "ट्रांजेक्शन", "गिनती", "संख्या", "काउंट", "कितने ट्रांजैक्शन"];
@@ -161,7 +210,36 @@ function extractProductFromMessage(message) {
     return null;
   }
 
+  // Prefer explicit Hindi/English possessive patterns around transaction context.
+  const directPatterns = [
+    /(?:मेरे|meri|mere)?\s*([^\s]+)\s*(?:की|ka|ki)\s*(?:ट्रांजैक्शन|transaction|sale|बिक्री)/i,
+    /(?:for|of)\s+([^\s]+)\s+(?:transaction|sale)/i,
+  ];
+  for (const pattern of directPatterns) {
+    const match = normalizedMessage.match(pattern);
+    if (match && match[1]) {
+      return String(match[1]).trim().toLowerCase();
+    }
+  }
+
   const stopWords = new Set([
+    "mera",
+    "meri",
+    "mere",
+    "me",
+    "my",
+    "रुपये",
+    "रुपए",
+    "रुपीस",
+    "रुपया",
+    "रूपये",
+    "rupees",
+    "rupaye",
+    "rupis",
+    "amount",
+    "thi",
+    "था",
+    "थी",
     "aaj",
     "kal",
     "pichle",
@@ -250,6 +328,23 @@ function inferIntentFromRules(message) {
 
   const timeRange = inferTimeRange(normalizedMessage);
   const product = extractProductFromMessage(normalizedMessage);
+  const asksProductAmount = PRODUCT_AMOUNT_PATTERNS.some((pattern) => pattern.test(normalizedMessage));
+
+  if (isNextDayForecastQuery(normalizedMessage)) {
+    return {
+      intent: "GET_NEXT_DAY_SALES",
+      timeRange: "custom",
+      product: null,
+    };
+  }
+
+  if (product && (asksProductAmount || PRODUCT_SALES_PATTERNS.some((pattern) => pattern.test(normalizedMessage)) || containsAnyPhrase(normalizedMessage, PRODUCT_SALES_TERMS))) {
+    return {
+      intent: "GET_PRODUCT_SALES",
+      timeRange,
+      product,
+    };
+  }
 
   if (TOP_PRODUCT_PATTERNS.some((pattern) => pattern.test(normalizedMessage)) || containsAnyPhrase(normalizedMessage, TOP_PRODUCT_TERMS)) {
     return {
@@ -318,7 +413,7 @@ async function extractIntent(message) {
         model: GROQ_MODEL,
         temperature: 0,
         messages: [
-          { role: "system", content: systemPrompt },
+          { role: "system", content: systemPromptWithRules },
           { role: "user", content: cleanedMessage },
         ],
       },
@@ -335,6 +430,35 @@ async function extractIntent(message) {
     const parsedIntent = parseIntentResponse(rawContent);
 
     if (parsedIntent.intent !== "UNKNOWN") {
+      const fallbackIntent = inferIntentFromRules(cleanedMessage);
+
+      // Correct common LLM misclassifications with deterministic rule fallback.
+      if (
+        parsedIntent.intent === "GET_SALES_COUNT"
+        && fallbackIntent.intent === "GET_PRODUCT_SALES"
+        && fallbackIntent.product
+      ) {
+        return fallbackIntent;
+      }
+
+      if (
+        parsedIntent.intent === "GET_TOTAL_SALES"
+        && fallbackIntent.intent === "GET_NEXT_DAY_SALES"
+      ) {
+        return fallbackIntent;
+      }
+
+      if (
+        parsedIntent.intent === "GET_TOTAL_SALES"
+        && isNextDayForecastQuery(cleanedMessage)
+      ) {
+        return {
+          intent: "GET_NEXT_DAY_SALES",
+          timeRange: "custom",
+          product: null,
+        };
+      }
+
       return parsedIntent;
     }
 
@@ -348,5 +472,5 @@ module.exports = {
   extractIntent,
   parseIntentResponse,
   inferIntentFromRules,
-  systemPrompt,
+  systemPrompt: systemPromptWithRules,
 };

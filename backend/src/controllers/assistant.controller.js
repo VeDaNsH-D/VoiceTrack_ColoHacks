@@ -47,12 +47,26 @@ function buildGroundedReply(queryResult, language) {
       : `Your total sales are ${formatRupee(queryResult?.value)}.`;
   }
 
+  if (type === "next_day_sales") {
+    const trend = String(queryResult?.trend || "flat").toLowerCase();
+    const trendText = trend === "up"
+      ? (hindi ? "trend up dikh raha hai" : "trend looks up")
+      : trend === "down"
+        ? (hindi ? "trend thoda down hai" : "trend looks slightly down")
+        : (hindi ? "trend stable hai" : "trend looks stable");
+
+    return hindi
+      ? `Agle din ki sales approx ${formatRupee(queryResult?.value)} ho sakti hai, ${trendText}.`
+      : `Next day sales may be around ${formatRupee(queryResult?.value)}, ${trendText}.`;
+  }
+
   if (type === "product_sales") {
     const qty = Number(queryResult?.quantity || 0);
+    const amount = Number(queryResult?.amount || 0);
     const product = queryResult?.product || (hindi ? "is item" : "that item");
     return hindi
-      ? `${product} ki ${qty} quantity biki.`
-      : `${qty} units of ${product} were sold.`;
+      ? `${product} ki ${qty} quantity biki, total ${formatRupee(amount)}.`
+      : `${qty} units of ${product} were sold, total ${formatRupee(amount)}.`;
   }
 
   if (type === "top_product") {

@@ -10,6 +10,7 @@ from app.services.conversation_state import (
     set_pending_conversation,
 )
 from app.services.assistant_reply import generate_assistant_reply
+from app.services.assistant_reply import get_pipeline_results
 from app.services.llm_structurer import structure_transcript
 from app.services.stt_pipeline import run_stt_pipeline
 from app.services.tts_service import text_to_speech
@@ -140,6 +141,52 @@ def _build_assistant_reply(structured_data):
         return f"Theek hai, maine expense note kar liya: {joined}."
 
     return "Kripya transaction thoda aur clearly batayiye."
+
+
+def _detect_tts_language(text: str) -> str:
+    value = str(text or "")
+    if any("\u0900" <= char <= "\u097F" for char in value):
+        return "hi"
+    return "en"
+
+
+def _looks_like_agent_query(transcript: str, structured_data, pending_state) -> bool:
+    cleaned = " ".join(str(transcript or "").strip().lower().split())
+    if not cleaned:
+        return False
+
+    if pending_state and bool((pending_state or {}).get("awaiting_clarification")):
+        return False
+
+    if _has_structured_entries(structured_data):
+        return False
+
+    meta = structured_data.get("meta") if isinstance(structured_data, dict) else {}
+    if (meta or {}).get("needs_clarification"):
+        # If utterance itself is clearly non-transactional, skip transaction clarification loop.
+        transaction_markers = [
+            "becha", "bechi", "sold", "sale", "expense", "kharcha", "qty", "quantity", "price", "amount", "rupaye", "rupees",
+        ]
+        if any(marker in cleaned for marker in transaction_markers):
+            return False
+
+    question_markers = [
+        "what", "why", "how", "when", "which", "who", "show", "tell", "suggest", "recommend",
+        "kya", "kaise", "kab", "kitna", "kitni", "batao", "dikhao", "samjhao", "salah",
+    ]
+    business_query_markers = [
+        "sales", "profit", "loss", "trend", "insight", "top", "history", "transaction history", "dashboard", "heatmap", "map", "area", "customer", "business", "growth", "plan",
+        "bikri", "fayda", "nuksan", "trend", "insight", "history", "len den", "dashboard", "heatmap", "naksha", "area", "grahak", "vyapar",
+    ]
+
+    is_question_shape = "?" in cleaned or any(marker in cleaned for marker in question_markers)
+    has_business_query_marker = any(marker in cleaned for marker in business_query_markers)
+    has_numeric_transaction_signal = any(char.isdigit() for char in cleaned)
+
+    if has_numeric_transaction_signal:
+        return False
+
+    return is_question_shape or has_business_query_marker
 
 
 def _has_structured_entries(structured_data) -> bool:
@@ -342,7 +389,10 @@ async def conversation(
         # do not merge it into previous transaction context.
         if had_pending_clarification and _is_low_signal_transcript(transcript) and not _looks_like_short_clarification_answer(transcript):
             assistant_reply = "Audio clear nahi aaya. Kripya last transaction item, quantity aur amount dobara batayiye."
-            reply_audio_path = await text_to_speech(assistant_reply)
+            reply_audio_path = await text_to_speech(
+                assistant_reply,
+                _detect_tts_language(assistant_reply),
+            )
             audio_url = build_audio_url(
                 request, reply_audio_path) if reply_audio_path else ""
             audio_needed = bool(reply_audio_path)
@@ -405,6 +455,70 @@ async def conversation(
                 "Transcript structuring failed during conversation: %s", structuring_error)
             structured_data = None
 
+        if _looks_like_agent_query(transcript, structured_data, pending_before):
+            pipeline_results = {}
+            try:
+                pipeline_results = get_pipeline_results(user_id)
+            except Exception as pipeline_error:
+                logger.warning("Pipeline result snapshot failed: %s", pipeline_error)
+
+            try:
+                assistant_reply = generate_assistant_reply(
+                    user_id=user_id,
+                    transcript=transcript,
+                    structured_data=None,
+                    stt_provider=str(stt_result.get("source") or "sarvam"),
+                    mode="agent",
+                )
+            except Exception as assistant_error:
+                logger.error("Agent-mode reply generation failed: %s", assistant_error)
+                assistant_reply = (
+                    "Maine aapka sawal samjha, lekin iss waqt detailed answer generate nahi ho paaya. "
+                    "Kripya ek baar phir se poochiye."
+                )
+
+            reply_audio_path = await text_to_speech(
+                assistant_reply,
+                _detect_tts_language(assistant_reply),
+            )
+            audio_url = build_audio_url(request, reply_audio_path) if reply_audio_path else ""
+
+            response_payload = {
+                "user_id": user_id,
+                "transcript": transcript,
+                "structuring_input": transcript,
+                "stt": {
+                    "source": stt_result.get("source"),
+                    "confidence": stt_result.get("confidence"),
+                    "raw_text": stt_result.get("raw_text"),
+                    "quality_gate": stt_result.get("quality_gate"),
+                    "preprocessing": stt_result.get("preprocessing"),
+                    "confidence_engine": stt_result.get("confidence_engine"),
+                    "debug": stt_result.get("debug"),
+                },
+                "structured_data": None,
+                "conversation_state": {
+                    "clarification_pending": bool(
+                        pending_before and pending_before.get("awaiting_clarification")
+                    ),
+                    "finalized": False,
+                    "started_new": False,
+                    "requires_confirmation": False,
+                    "saved_to_history": False,
+                    "agent_mode": True,
+                },
+                "assistant": {
+                    "reply": assistant_reply,
+                    "audio_path": reply_audio_path,
+                    "audio_url": audio_url,
+                    "audio_needed": bool(reply_audio_path),
+                },
+                "pipeline_results": pipeline_results,
+            }
+
+            logger.info("Conversation handled in agent mode for user: %s", user_id)
+            return JSONResponse(content=success_response(response_payload, "Conversation completed"))
+
         clarification_pending = _update_pending_state(
             user_id, transcript, structuring_input, structured_data)
         try:
@@ -446,7 +560,10 @@ async def conversation(
                 "Kripya confirm kariye ki maine aapki baat sahi samjhi hai."
             ).strip()
 
-        reply_audio_path = await text_to_speech(assistant_reply)
+        reply_audio_path = await text_to_speech(
+            assistant_reply,
+            _detect_tts_language(assistant_reply),
+        )
         audio_url = build_audio_url(
             request, reply_audio_path) if reply_audio_path else ""
         audio_needed = bool(reply_audio_path)

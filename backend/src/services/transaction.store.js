@@ -51,12 +51,32 @@ function buildTransactionSummary(entry) {
   return summaryParts.join(". ");
 }
 
+function isFiniteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function normalizeLocation(location) {
+  const lat = Number(location?.lat);
+  const lng = Number(location?.lng);
+
+  if (isFiniteNumber(lat) && isFiniteNumber(lng)) {
+    return { lat, lng };
+  }
+
+  // Safe default so ledger saves do not fail when GPS is unavailable.
+  return {
+    lat: Number(process.env.DEFAULT_LOCATION_LAT || 20.5937),
+    lng: Number(process.env.DEFAULT_LOCATION_LNG || 78.9629),
+  };
+}
+
 async function enrichTransactionEntry(entry) {
   const summary = buildTransactionSummary(entry);
   const embedding = await generateEmbedding(summary);
 
   return {
     ...entry,
+    location: normalizeLocation(entry?.location),
     summary,
     ...(Array.isArray(embedding) && embedding.length === 384 ? { embedding } : {}),
   };

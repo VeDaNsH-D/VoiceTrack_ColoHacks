@@ -22,6 +22,22 @@ function normalizeEmbeddingResponse(data) {
   return null;
 }
 
+async function requestEmbedding(payload) {
+  const response = await axios.post(
+    env.huggingFaceEmbeddingUrl,
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${env.huggingFaceApiKey}`,
+        "Content-Type": "application/json",
+      },
+      timeout: 15000,
+    }
+  );
+
+  return normalizeEmbeddingResponse(response.data);
+}
+
 async function generateEmbedding(text) {
   const cleanedText = typeof text === "string" ? text.trim() : "";
 
@@ -35,8 +51,14 @@ async function generateEmbedding(text) {
   }
 
   try {
-    const response = await axios.post(
-      env.huggingFaceEmbeddingUrl,
+    const payloadCandidates = [
+      {
+        inputs: cleanedText,
+        options: {
+          wait_for_model: true,
+          use_cache: true,
+        },
+      },
       {
         inputs: [cleanedText],
         options: {
@@ -45,29 +67,45 @@ async function generateEmbedding(text) {
         },
       },
       {
-        headers: {
-          Authorization: `Bearer ${env.huggingFaceApiKey}`,
-          "Content-Type": "application/json",
+        inputs: {
+          source_sentence: cleanedText,
+          sentences: [cleanedText],
         },
-        timeout: 15000,
-      }
-    );
+        options: {
+          wait_for_model: true,
+          use_cache: true,
+        },
+      },
+    ];
 
-    const embedding = normalizeEmbeddingResponse(response.data);
+    let embedding = null;
+    for (const payload of payloadCandidates) {
+      try {
+        embedding = await requestEmbedding(payload);
+        if (Array.isArray(embedding)) {
+          break;
+        }
+      } catch (error) {
+        // Try the next payload shape; some HF endpoints expect different input format.
+      }
+    }
 
     if (!Array.isArray(embedding) || embedding.length !== 384) {
       logger.warn("Embedding generation returned unexpected dimensions", {
         length: Array.isArray(embedding) ? embedding.length : null,
+        endpoint: env.huggingFaceEmbeddingUrl,
       });
       return null;
     }
 
     return embedding;
   } catch (error) {
+    const rootError = error?.response ? error : null;
     logger.warn("Embedding generation failed", {
-      error: error.message,
-      status: error.response?.status,
-      responseData: error.response?.data,
+      error: (rootError || error)?.message,
+      status: (rootError || error)?.response?.status,
+      responseData: (rootError || error)?.response?.data,
+      endpoint: env.huggingFaceEmbeddingUrl,
     });
     return null;
   }
