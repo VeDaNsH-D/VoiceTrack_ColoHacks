@@ -19,6 +19,11 @@ const {
   saveProcessedTransaction,
   saveRawLog,
 } = require("../services/transaction.store");
+const {
+  uploadAudioToFilecoin,
+  getAudioGatewayUrl,
+  normalizeStorageResponse,
+} = require("../services/filecoinAudioStorage");
 
 const router = express.Router();
 
@@ -498,6 +503,42 @@ router.post("/process", upload.single("audio"), async (req, res, next) => {
       transactions: confidence.transactions,
     });
 
+    // 🔗 UPLOAD AUDIO TO FILECOIN
+    let audioStorageMetadata = null;
+    if (req.file?.buffer && saved?._id) {
+      try {
+        console.log("[Voice Route] Uploading audio to Filecoin...");
+        const filecoinResponse = await uploadAudioToFilecoin(
+          req.file.buffer,
+          req.file.originalname || `transaction-${saved._id}.webm`
+        );
+
+        audioStorageMetadata = normalizeStorageResponse(filecoinResponse);
+
+        // Update transaction with Filecoin CID
+        await Transaction.findByIdAndUpdate(
+          saved._id,
+          {
+            "audioStorage.cid": audioStorageMetadata.cid,
+            "audioStorage.gateway_url": audioStorageMetadata.gateway_url,
+            "audioStorage.storage_provider": audioStorageMetadata.storage_provider,
+            "audioStorage.stored_at": new Date(),
+            "audioStorage.provider_response": audioStorageMetadata.provider_response,
+            "audioStorage.audio_metadata.original_filename": req.file.originalname || "recording.webm",
+            "audioStorage.audio_metadata.mime_type": req.file.mimetype || "audio/webm",
+            "audioStorage.audio_metadata.size_bytes": req.file.size || req.file.buffer.length,
+          },
+          { new: true }
+        );
+
+        console.log(`[Voice Route] Audio stored on Filecoin. CID: ${audioStorageMetadata.cid}`);
+      } catch (filecoinError) {
+        // Log error but don't fail the entire request
+        console.error("[Voice Route] Filecoin upload failed:", filecoinError.message);
+        // Optionally track this in logs for later retries
+      }
+    }
+
     const reply = await generateVoiceReply({
       rawTranscript,
       transactions: confidence.transactions,
@@ -530,6 +571,11 @@ router.post("/process", upload.single("audio"), async (req, res, next) => {
           modelUsed: reply.modelUsed,
           languageStyle: reply.style,
         },
+        audioStorage: audioStorageMetadata ? {
+          cid: audioStorageMetadata.cid,
+          gateway_url: audioStorageMetadata.gateway_url,
+          storage_provider: audioStorageMetadata.storage_provider,
+        } : null,
       },
       "Voice narration processed and saved"
     );
@@ -575,6 +621,194 @@ router.post("/undo-last", async (req, res, next) => {
       },
       "Last transaction undone"
     );
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 🔗 FILECOIN AUDIO STORAGE ENDPOINTS
+
+/**
+ * GET /audio/:transactionId
+ * Retrieve audio URL from Filecoin via transaction ID
+ * Returns IPFS gateway URL or redirects to the audio
+ */
+router.get("/audio/:transactionId", async (req, res, next) => {
+  try {
+    const { transactionId } = req.params;
+    const redirect = String(req.query.redirect || "false").toLowerCase() === "true";
+
+    if (!mongoose.Types.ObjectId.isValid(transactionId)) {
+      return sendError(res, "Invalid transaction ID", 400, {
+        code: "INVALID_TRANSACTION_ID",
+      });
+    }
+
+    const transaction = await Transaction.findById(transactionId)
+      .select("audioStorage")
+      .lean();
+
+    if (!transaction) {
+      return sendError(res, "Transaction not found", 404, {
+        code: "TRANSACTION_NOT_FOUND",
+      });
+    }
+
+    if (!transaction.audioStorage?.cid) {
+      return sendError(res, "No audio stored for this transaction", 404, {
+        code: "NO_AUDIO_STORED",
+      });
+    }
+
+    const audioUrl = transaction.audioStorage.gateway_url;
+
+    if (redirect) {
+      return res.redirect(audioUrl);
+    }
+
+    return sendSuccess(
+      res,
+      {
+        transactionId: String(transaction._id),
+        audioUrl,
+        cid: transaction.audioStorage.cid,
+        storage_provider: transaction.audioStorage.storage_provider,
+        stored_at: transaction.audioStorage.stored_at,
+        audio_metadata: transaction.audioStorage.audio_metadata,
+      },
+      "Audio URL retrieved"
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /audio/list
+ * List all transactions with stored audio
+ * Protected - requires user/business context
+ */
+router.get("/audio/list", async (req, res, next) => {
+  try {
+    const authUserId = req.user?.userId || null;
+    const requestedUserId = authUserId || req.query?.userId || null;
+    const resolvedIds = await resolveUserAndBusinessIds(requestedUserId, req.query?.businessId);
+    const userId = resolvedIds.userId;
+    const businessId = resolvedIds.businessId;
+
+    if (!userId && !businessId) {
+      return sendError(res, "User scope is required", 400, {
+        code: "USER_SCOPE_REQUIRED",
+      });
+    }
+
+    const filter = {
+      "audioStorage.cid": { $exists: true, $ne: null },
+    };
+
+    if (userId) {
+      filter.userId = userId;
+    } else if (businessId) {
+      filter.businessId = businessId;
+    }
+
+    const transactions = await Transaction.find(filter)
+      .select("_id rawText audioStorage createdAt totals")
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    return sendSuccess(
+      res,
+      {
+        count: transactions.length,
+        transactions: transactions.map((tx) => ({
+          transactionId: String(tx._id),
+          rawText: tx.rawText,
+          audioUrl: tx.audioStorage?.gateway_url,
+          cid: tx.audioStorage?.cid,
+          storage_provider: tx.audioStorage?.storage_provider,
+          stored_at: tx.audioStorage?.stored_at,
+          sales_amount: tx.totals?.salesAmount,
+          expense_amount: tx.totals?.expenseAmount,
+          created_at: tx.createdAt,
+        })),
+      },
+      "Audio files listed"
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /audio/retry-upload/:transactionId
+ * Retry uploading audio for a transaction that failed initial upload
+ * Requires original audio to be re-provided
+ */
+router.post("/audio/retry-upload/:transactionId", upload.single("audio"), async (req, res, next) => {
+  try {
+    const { transactionId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(transactionId)) {
+      return sendError(res, "Invalid transaction ID", 400, {
+        code: "INVALID_TRANSACTION_ID",
+      });
+    }
+
+    if (!req.file?.buffer) {
+      return sendError(res, "Audio file is required", 400, {
+        code: "AUDIO_REQUIRED",
+      });
+    }
+
+    const transaction = await Transaction.findById(transactionId);
+
+    if (!transaction) {
+      return sendError(res, "Transaction not found", 404, {
+        code: "TRANSACTION_NOT_FOUND",
+      });
+    }
+
+    try {
+      const filecoinResponse = await uploadAudioToFilecoin(
+        req.file.buffer,
+        req.file.originalname || `retry-${transactionId}.webm`
+      );
+
+      const audioStorageMetadata = normalizeStorageResponse(filecoinResponse);
+
+      // Update transaction with new Filecoin CID
+      const updated = await Transaction.findByIdAndUpdate(
+        transactionId,
+        {
+          "audioStorage.cid": audioStorageMetadata.cid,
+          "audioStorage.gateway_url": audioStorageMetadata.gateway_url,
+          "audioStorage.storage_provider": audioStorageMetadata.storage_provider,
+          "audioStorage.stored_at": new Date(),
+          "audioStorage.provider_response": audioStorageMetadata.provider_response,
+          "audioStorage.audio_metadata.original_filename": req.file.originalname,
+          "audioStorage.audio_metadata.mime_type": req.file.mimetype || "audio/webm",
+          "audioStorage.audio_metadata.size_bytes": req.file.size || req.file.buffer.length,
+        },
+        { new: true }
+      ).select("audioStorage");
+
+      return sendSuccess(
+        res,
+        {
+          transactionId: String(transactionId),
+          audioUrl: audioStorageMetadata.gateway_url,
+          cid: audioStorageMetadata.cid,
+          storage_provider: audioStorageMetadata.storage_provider,
+        },
+        "Audio uploaded to Filecoin successfully"
+      );
+    } catch (filecoinError) {
+      return sendError(res, `Filecoin upload failed: ${filecoinError.message}`, 500, {
+        code: "FILECOIN_UPLOAD_FAILED",
+      });
+    }
   } catch (error) {
     next(error);
   }

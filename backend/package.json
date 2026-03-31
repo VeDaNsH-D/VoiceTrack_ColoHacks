@@ -4,6 +4,8 @@
   "private": true,
   "main": "server.js",
   "dependencies": {
+    "@lit-protocol/lit-node-client": "^7.4.0",
+    "@web3-storage/w3up-client": "^17.3.0",
     "axios": "^1.14.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
@@ -12,7 +14,8 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.3.3",
     "multer": "^2.1.1",
-    "node-telegram-bot-api": "^0.67.0"
+    "node-telegram-bot-api": "^0.67.0",
+    "web3.storage": "^4.5.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
